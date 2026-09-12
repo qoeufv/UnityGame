@@ -5,7 +5,8 @@ using UnityEngine.Tilemaps;
 namespace StrategyRPG.Map
 {
     /// <summary>
-    /// Detects clicks on an existing Tilemap and logs the selected cell coordinate.
+    /// Detects clicks on the hex map and coordinates player movement.
+    /// Supports both 2D ortho and 3D angled strategy cameras.
     /// </summary>
     public class HexMapInput : MonoBehaviour
     {
@@ -18,6 +19,7 @@ namespace StrategyRPG.Map
         [SerializeField] private Vector3Int currentCell;
 
         private Camera mainCamera;
+        private bool mapInputEnabled = true;
 
         public Vector3Int CurrentCell => currentCell;
 
@@ -112,7 +114,7 @@ namespace StrategyRPG.Map
 
         private void Update()
         {
-            if (!HasRequiredReferences() || Mouse.current == null)
+            if (!mapInputEnabled || !HasRequiredReferences() || Mouse.current == null)
             {
                 return;
             }
@@ -123,27 +125,12 @@ namespace StrategyRPG.Map
             }
 
             Vector2 mousePosition = Mouse.current.position.ReadValue();
-            float distanceToTilemap = hexTilemap.transform.position.z - mainCamera.transform.position.z;
-            Vector3 screenPosition = new Vector3(mousePosition.x, mousePosition.y, distanceToTilemap);
-            Vector3 worldPosition = mainCamera.ScreenToWorldPoint(screenPosition);
-            Vector3Int cellPosition = GetVisualCellPosition(worldPosition);
 
-            if (hexTilemap.HasTile(cellPosition))
+            Ray ray = mainCamera.ScreenPointToRay(mousePosition);
+            if (mapManager.TryGetCellFromRay(ray, out Vector3Int cellPosition))
             {
-                Debug.Log($"Clicked Hex Tile: {cellPosition}", this);
                 TryMovePlayer(cellPosition);
             }
-        }
-
-        private Vector3Int GetVisualCellPosition(Vector3 worldPosition)
-        {
-            // Tile sprites are drawn relative to the Tilemap's Tile Anchor.
-            // Remove that offset so WorldToCell matches the hex that is visible under the mouse.
-            Vector3 cellAnchorOffset =
-                hexTilemap.GetCellCenterWorld(Vector3Int.zero) -
-                hexTilemap.CellToWorld(Vector3Int.zero);
-
-            return hexTilemap.WorldToCell(worldPosition - cellAnchorOffset);
         }
 
         private void TryMovePlayer(Vector3Int destinationCell)
@@ -176,9 +163,32 @@ namespace StrategyRPG.Map
 
         private void MovePlayerToCell(Vector3Int cellPosition)
         {
-            Vector3 cellCenter = hexTilemap != null ? hexTilemap.GetCellCenterWorld(cellPosition) : Vector3.zero;
-            cellCenter.z = playerTransform.position.z;
-            playerTransform.position = cellCenter;
+            playerTransform.position = mapManager.GetWorldPosition(cellPosition);
+        }
+
+        /// <summary>
+        /// Enables or disables map clicks while another system, such as combat, owns input.
+        /// </summary>
+        public void SetMapInputEnabled(bool isEnabled)
+        {
+            mapInputEnabled = isEnabled;
+        }
+
+        /// <summary>
+        /// Moves the player back to the Town after a prototype battle defeat.
+        /// </summary>
+        public void ReturnPlayerToTown()
+        {
+            if (!HasRequiredReferences() || !TryFindTownCell(out Vector3Int townCell))
+            {
+                Debug.LogError("HexMapInput: Could not return the Player to a Town tile.", this);
+                return;
+            }
+
+            currentCell = townCell;
+            MovePlayerToCell(currentCell);
+            Debug.Log($"Player returned to Town: {currentCell}", this);
+            mapManager.EnterTile(currentCell);
         }
 
         private bool HasRequiredReferences()
