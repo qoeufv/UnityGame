@@ -1,27 +1,27 @@
-# Week 1 进度总结
+# Week 1 Progress Summary
 
-更新日期：2026-09-18
+Updated: 2026-09-18
 
-本周完成了武侠回合制 RPG 的基础原型，建立了地图探索、进入战斗和战后返回地图的流程。
+This week, we built the foundation of a wuxia turn-based RPG prototype, connecting map exploration, battle encounters, and the return to the map after combat.
 
-## 已完成
+## Completed
 
-- **3D 六边形地图**：搭建 19 格原型地图，包含城镇、草地、森林、山地和水域；支持地块分块渲染、相邻移动、探索状态及事件入口。
-- **地图交互修复**：统一玩家与地块的定位坐标，修复 Town 出生点偏移；通过 3D 射线命中地块识别点击，支持镜头平移、旋转和缩放。
-- **战斗原型**：实现玩家与敌人轮流行动、攻击、防御、恢复、胜负处理，以及地图/战斗镜头切换和地形环境展示。
-- **战斗 UI**：提供双方状态栏、底部指令栏、技能子菜单、装备预览及战斗日志；排查了 Game 预览缩放造成的按钮裁切问题，调整缩放后按钮完整可见。
-- **角色与技能数据**：新增 CharacterData、EquipmentData、SkillData；支持六项基础属性（基础暴击率 3%）、六个装备槽、四类武器和三类技能。
-- **动画与效果接口**：通过 BattleCharacterController 分离战斗结算与动画播放，支持定时命中、动画事件命中、重复回调保护及取消动作；新增 Flame Sun Palm 示例（1.3 倍伤害、90% 准确率、持续 3 回合的 1% 最大 HP 灼烧）。
-- **角色资源接入**：导入模块化角色与动作资源，为主角、敌人预制体绑定新的 Animator Controller，并关闭 Root Motion。
+- **3D hex map:** Built a 19-tile prototype with Town, Grass, Forest, Mountain, and Water terrain. Added chunk rendering, adjacent-tile movement, exploration state, and tile event entry points.
+- **Map interaction fixes:** Unified character and tile coordinates to fix the Town spawn offset. Added 3D raycast-based tile selection and camera panning, rotation, and zoom.
+- **Battle prototype:** Implemented alternating player/enemy turns, attacks, defense, healing, victory/defeat handling, map/battle camera switching, and terrain-specific battle environments.
+- **Battle UI:** Added status bars, a bottom command bar, skill submenus, equipment previews, and combat logs. Resolved clipped buttons in the Unity Game preview by adjusting its zoom level.
+- **Character and skill data:** Added CharacterData, EquipmentData, and SkillData, supporting six core stats (including a 3% base critical rate), six equipment slots, four weapon types, and three skill categories.
+- **Animation and effect integration:** Separated combat resolution from animation playback through BattleCharacterController. Added timed and animation-event-driven impacts, duplicate callback protection, and action cancellation. Created Flame Sun Palm with a 1.3 damage multiplier, 90% accuracy, and Burning that deals 1% of maximum HP per turn for three turns.
+- **Character assets:** Imported modular character models and animation assets, assigned the new Animator Controller to the hero and enemy prefabs, and disabled Root Motion.
 
-## 验证与当前状态
+## Validation and Current Status
 
-- 前期地图回归检查通过：19 个地块在 9 组相机角度下共 171 次选格正确，验证了出生、相邻移动和返回 Town。
-- 前期数据与命中时序检查通过：覆盖装备替换、命中/未命中/暴击、武器限制、灼烧持续时间以及动作取消；原有 Animator 的技能播放与延迟伤害联动也已验证。
-- 当前仍是可运行原型；本次提交主要同步最新角色动画配置与进度文档，未重新执行完整 Unity 回归。
+- Earlier map regression checks passed: 171 tile-selection checks across 19 tiles and nine camera angles, plus spawn positioning, adjacent movement, and return-to-Town checks.
+- Earlier combat data and impact-timing checks passed, covering equipment replacement, hits/misses/critical hits, weapon requirements, Burning duration, and action cancellation. Skill playback and delayed damage were also verified with the original Animator.
+- The project remains a playable prototype. The latest implementation update synced character animation configuration and progress documentation; a full Unity regression run has not been repeated for that configuration.
 
-## 下一步
+## Next Steps
 
-- 完善新 Animator 的技能与防御动作衔接，统一 Defend 参数类型（新控制器为 Trigger，现有播放代码仍同时调用 Bool/Trigger），并重新进行动画联调。
-- 接入技能专属动画、VFX 与命中事件，完善技能选择和装备展示。
-- 推进速度属性驱动的行动顺序、数值平衡，以及不同窗口尺寸下的 UI 验证。
+- Improve skill and defense transitions in the new Animator, align the Defend parameter type (the new controller uses a Trigger while playback code currently calls both Bool and Trigger), and repeat animation integration checks.
+- Add skill-specific animations, VFX, and impact events; improve skill selection and equipment presentation.
+- Develop Speed-based turn order, refine combat balance, and verify the UI across different window sizes.
