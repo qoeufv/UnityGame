@@ -126,12 +126,16 @@ namespace StrategyRPG.Combat
         /// <summary>
         /// Toggles defensive guard posture.
         /// </summary>
-        public void PlayDefend(bool defend)
+        public void PlayDefend(bool defend = true)
         {
             isDefending = defend;
             if (animator != null)
             {
                 animator.SetBool(ParamDefend, defend);
+                if (defend)
+                {
+                    animator.SetTrigger(ParamDefend);
+                }
             }
         }
 
