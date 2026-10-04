@@ -29,18 +29,27 @@ namespace StrategyRPG.Flight
         private string scanMessage = "Explore the platform and scan a structure.";
         private float scanMessageUntil;
         private bool explorationComplete;
+        private Transform dockedShip;
+        private Transform oceanSurface;
+        private Material oceanMaterial;
+        private readonly List<Transform> scanMarkers = new List<Transform>();
+        private readonly List<Renderer> scanMarkerRenderers = new List<Renderer>();
+        private const float DockInteractionDistance = 9.0f;
+        internal static int ReturnTargetIndex = -1;
+        internal static bool ReturningFromSurface;
 
         private void Start()
         {
             if (planet == null) planet = Resources.Load<PlanetData>("Planets/AzureWorld");
             BuildSurface();
             var playerObject = new GameObject("Surface Explorer", typeof(CharacterController), typeof(PlanetSurfaceWalker));
-            playerObject.transform.position = new Vector3(0, .72f, -2.5f); player = playerObject.transform;
+            playerObject.transform.position = new Vector3(0, .72f, -5.0f); player = playerObject.transform;
             viewPivot = new GameObject("First Person View").transform; viewPivot.SetParent(player, false); viewPivot.localPosition = Vector3.up * 1.55f;
             walker = player.GetComponent<PlanetSurfaceWalker>();
             walker.viewPivot = viewPivot;
-            walker.platformHalfExtents = new Vector2(18f, 16f);
+            walker.platformHalfExtents = new Vector2(14f, 10.5f);
             walker.interactionDistance = 8.5f;
+            walker.swimmingEnabled = false;
             walker.ResetLook(0f);
             viewPivot.localRotation = Quaternion.identity;
             var cameraObject = new GameObject("Surface Camera", typeof(Camera), typeof(AudioListener));
@@ -48,27 +57,34 @@ namespace StrategyRPG.Flight
             view = cameraObject.GetComponent<Camera>();
             view.tag = "MainCamera"; view.fieldOfView = normalFieldOfView; view.clearFlags = CameraClearFlags.SolidColor;
             view.backgroundColor = new Color(.05f, .22f, .30f);
+            // Keep the ship visible from the landing pad while leaving the player a clear walking start.
+            dockedShip = BuildDockedShip(new Vector3(-3.6f, .78f, -4.0f));
             BuildHud();
         }
 
         private void Update()
         {
+            AnimateWorld();
             var keys = Keyboard.current;
-            if (keys != null && keys.escapeKey.wasPressedThisFrame) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; SceneManager.LoadScene("SpaceFlightPrototype"); }
-            if (keys != null && keys.fKey.wasPressedThisFrame) TryScan();
+            if (keys != null && keys.escapeKey.wasPressedThisFrame) ReturnToOrbit();
+            if (keys != null && keys.fKey.wasPressedThisFrame)
+            {
+                if (IsNearDockedShip()) ReturnToOrbit();
+                else TryScan();
+            }
             if (walker != null && view != null)
             {
-                bool underwater = walker.IsUnderwater;
-                view.fieldOfView = Mathf.Lerp(view.fieldOfView, underwater ? underwaterFieldOfView : normalFieldOfView, Time.deltaTime * 5f);
-                view.backgroundColor = underwater ? new Color(.005f, .06f, .09f) : new Color(.05f, .22f, .30f);
-                RenderSettings.fogColor = underwater ? new Color(.005f, .12f, .16f) : new Color(.04f, .16f, .20f);
-                RenderSettings.fogDensity = underwater ? .08f : .008f;
+                bool nearShip = IsNearDockedShip();
+                view.fieldOfView = Mathf.Lerp(view.fieldOfView, normalFieldOfView, Time.deltaTime * 5f);
+                view.backgroundColor = new Color(.05f, .22f, .30f);
+                RenderSettings.fogColor = new Color(.04f, .16f, .20f);
+                RenderSettings.fogDensity = .008f;
                 if (hudText != null)
                 {
-                    string state = underwater ? $"UNDERWATER  DEPTH {walker.DepthBelowWater:0.0}m  SPACE ASCEND  CTRL DIVE" : "PLATFORM / SHALLOW WATER";
-                    string prompt = Time.unscaledTime < scanMessageUntil ? scanMessage : GetScanPrompt();
+                    string state = nearShip ? "DOCKED SHIP  /  F RETURN TO ORBIT" : "ISLAND SURFACE  /  OCEAN OBSERVATION ONLY";
+                    string prompt = Time.unscaledTime < scanMessageUntil ? scanMessage : nearShip ? "F  Return to near orbit" : GetScanPrompt();
                     string mission = explorationComplete ? "MISSION COMPLETE  /  Azure World survey uploaded" : "MISSION  /  Scan all four marked structures";
-                    hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk / Swim    Mouse  Look around    SPACE  Swim up    CTRL  Dive    F  Scan    ESC  Return to orbit\n{state}    Discoveries {scanned.Count}/{scanTargets.Count}\n{mission}\n{prompt}";
+                    hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Return to orbit\n{state}    Discoveries {scanned.Count}/{scanTargets.Count}\n{mission}\n{prompt}";
                 }
             }
         }
@@ -104,6 +120,52 @@ namespace StrategyRPG.Flight
             scanMessage = "Move closer and look directly at a structure before scanning."; scanMessageUntil = Time.unscaledTime + 4f;
         }
 
+        private bool IsNearDockedShip()
+        {
+            if (dockedShip == null || player == null) return false;
+            Vector2 playerXZ = new Vector2(player.position.x, player.position.z);
+            Vector2 shipXZ = new Vector2(dockedShip.position.x, dockedShip.position.z);
+            return Vector2.Distance(playerXZ, shipXZ) <= DockInteractionDistance;
+        }
+
+        private void ReturnToOrbit()
+        {
+            ReturnTargetIndex = planet != null && planet.displayName.ToLowerInvariant().Contains("moon") ? 3 : 1;
+            ReturningFromSurface = true;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            SceneManager.LoadScene("SpaceFlightPrototype");
+        }
+
+        private Transform BuildDockedShip(Vector3 position)
+        {
+            var root = new GameObject("Player Ship / Docked at Azure World").transform;
+            root.position = position;
+            var hull = Material(new Color(.28f, .38f, .46f));
+            var glass = Material(new Color(.03f, .20f, .25f));
+            var glow = Material(new Color(.08f, .75f, .9f));
+            DockPart("Docked ship hull", PrimitiveType.Capsule, root, Vector3.zero, new Vector3(1.8f, .75f, 1.25f), Quaternion.Euler(90, 0, 0), hull);
+            DockPart("Docked ship canopy", PrimitiveType.Sphere, root, new Vector3(0, .34f, .20f), new Vector3(.9f, .38f, .8f), Quaternion.identity, glass);
+            DockPart("Docked ship port wing", PrimitiveType.Cube, root, new Vector3(-1.35f, -.12f, -.25f), new Vector3(1.4f, .10f, .65f), Quaternion.Euler(0, -12, 0), hull);
+            DockPart("Docked ship starboard wing", PrimitiveType.Cube, root, new Vector3(1.35f, -.12f, -.25f), new Vector3(1.4f, .10f, .65f), Quaternion.Euler(0, 12, 0), hull);
+            DockPart("Docked ship beacon", PrimitiveType.Cylinder, root, new Vector3(0, .78f, -.25f), new Vector3(.12f, .08f, .12f), Quaternion.identity, glow);
+            return root;
+        }
+
+        private GameObject DockPart(string label, PrimitiveType type, Transform parent, Vector3 position, Vector3 scale, Quaternion rotation, Material material)
+        {
+            var part = GameObject.CreatePrimitive(type);
+            part.name = label;
+            part.transform.SetParent(parent, false);
+            part.transform.localPosition = position;
+            part.transform.localScale = scale;
+            part.transform.localRotation = rotation;
+            part.GetComponent<Renderer>().sharedMaterial = material;
+            var collider = part.GetComponent<Collider>();
+            if (collider != null) SafeDestroy(collider);
+            return part;
+        }
+
         private bool HitsTarget(Transform target)
         {
             if (walker == null || target == null || !walker.IsWithinInteractionDistance(target)) return false;
@@ -122,47 +184,21 @@ namespace StrategyRPG.Flight
             RenderSettings.fog = true; RenderSettings.fogColor = new Color(.04f, .16f, .20f); RenderSettings.fogDensity = .008f;
             var sun = new GameObject("Ocean World Sun", typeof(Light)); sun.transform.rotation = Quaternion.Euler(42, -28, 0); var light = sun.GetComponent<Light>(); light.type = LightType.Directional; light.intensity = 1.15f; light.color = new Color(.78f, .9f, 1f);
 
-            // Expansive floating research platform deck
-            var ground = GameObject.CreatePrimitive(PrimitiveType.Cylinder); ground.name = "Ocean Research Platform / Main Deck";
-            ground.transform.position = new Vector3(0, .15f, 2.0f); ground.transform.localScale = new Vector3(36f, .5f, 30f);
-            ground.GetComponent<Renderer>().sharedMaterial = Material(new Color(.12f, .22f, .27f));
+            BuildIslandTerrain();
 
-            var deck = GameObject.CreatePrimitive(PrimitiveType.Cube); deck.name = "Ocean Research Platform / Rear Campus Deck";
-            deck.transform.position = new Vector3(0, .48f, 8.5f); deck.transform.localScale = new Vector3(28f, .16f, 13f);
-            deck.GetComponent<Renderer>().sharedMaterial = Material(new Color(.18f, .30f, .34f));
-
-            var padDeck = GameObject.CreatePrimitive(PrimitiveType.Cylinder); padDeck.name = "Ocean Research Platform / South Landing Deck";
-            padDeck.transform.position = new Vector3(0, .48f, -7.5f); padDeck.transform.localScale = new Vector3(11f, .16f, 11f);
-            padDeck.GetComponent<Renderer>().sharedMaterial = Material(new Color(.16f, .26f, .30f));
-
-            var water = GameObject.CreatePrimitive(PrimitiveType.Plane); water.name = "Ocean Surface / Walkable Water Boundary"; water.transform.position = new Vector3(0, -.08f, 0); water.transform.localScale = Vector3.one * 160f;
+            var water = GameObject.CreatePrimitive(PrimitiveType.Plane); water.name = "Ocean Surface / Azure World Sea"; water.transform.position = new Vector3(0, -.08f, 0); water.transform.localScale = Vector3.one * 160f;
             var waterMaterial = Material(new Color(.015f, .22f, .30f)); waterMaterial.SetFloat("_Metallic", .15f); waterMaterial.SetFloat("_Smoothness", .9f); water.GetComponent<Renderer>().sharedMaterial = waterMaterial;
+            oceanSurface = water.transform; oceanMaterial = waterMaterial;
             DestroyWaterCollider(water);
 
-            AddWaterDetail(new Vector3(0, -.045f, 2.0f), 45f, new Color(.03f, .40f, .47f));
-            AddWaterDetail(new Vector3(0, -.035f, 2.0f), 28f, new Color(.02f, .28f, .38f));
-
-            // Central boulevard and campus walkways connecting all sectors
-            AddWalkway(new Vector3(0, .58f, 0.5f), new Vector3(3.4f, .12f, 10.0f));
-            AddWalkway(new Vector3(-4.5f, .59f, 6.5f), new Vector3(6.5f, .12f, 2.8f));
-            AddWalkway(new Vector3(4.5f, .59f, 6.5f), new Vector3(6.5f, .12f, 2.8f));
-            AddWalkway(new Vector3(0, .59f, 10.5f), new Vector3(2.8f, .12f, 4.5f));
-
-            // Accessible ramp leading from central walkway up onto the landing platform
-            var ramp = GameObject.CreatePrimitive(PrimitiveType.Cube); ramp.name = "Landing Platform Access Ramp";
-            ramp.transform.position = new Vector3(0, 1.55f, -5.0f); ramp.transform.localScale = new Vector3(2.8f, .12f, 2.8f);
-            ramp.transform.rotation = Quaternion.Euler(35f, 0f, 0f);
-            ramp.GetComponent<Renderer>().sharedMaterial = Material(new Color(.14f, .20f, .24f));
-
             // Place models upright, scaled to grand structure sizes, resting flush on the platform
-            scanTargets.Add(PlaceModel(researchBuilding, new Vector3(-9.0f, .59f, 6.5f), 4.8f, "Research Laboratory").transform);
-            scanTargets.Add(PlaceModel(residentialHabitat, new Vector3(9.0f, .59f, 6.5f), 4.8f, "Residential Habitat").transform);
-            scanTargets.Add(PlaceModel(communicationTower, new Vector3(0, .59f, 13.0f), 11.5f, "Communication Tower").transform);
-            scanTargets.Add(PlaceModel(landingPlatform, new Vector3(0, .59f, -7.5f), 2.2f, "Landing Platform").transform);
+            scanTargets.Add(PlaceModel(researchBuilding, new Vector3(-6.8f, .59f, 4.7f), 4.8f, "Research Laboratory").transform);
+            scanTargets.Add(PlaceModel(residentialHabitat, new Vector3(6.8f, .59f, 4.7f), 4.8f, "Residential Habitat").transform);
+            scanTargets.Add(PlaceModel(communicationTower, new Vector3(0, .59f, 8.7f), 11.5f, "Communication Tower").transform);
+            scanTargets.Add(PlaceModel(landingPlatform, new Vector3(0, .59f, -6.4f), 2.2f, "Landing Platform").transform);
+            BuildShorelineBand();
+            BuildScanMarkers();
 
-            AddBeacon(new Vector3(0, .72f, 2.0f));
-            AddRailings();
-            AddSupportPiers();
         }
 
         private static void SafeDestroy(Object obj)
@@ -182,6 +218,118 @@ namespace StrategyRPG.Flight
         {
             var walkway = GameObject.CreatePrimitive(PrimitiveType.Cube); walkway.name = "Base Walkway"; walkway.transform.position = position; walkway.transform.localScale = scale;
             walkway.GetComponent<Renderer>().sharedMaterial = Material(new Color(.12f, .18f, .22f));
+        }
+
+        private void BuildIslandTerrain()
+        {
+            // A single irregular island replaces the old cylinder/deck stack. The
+            // outer ring is lower than the center so the sea reads as surrounding
+            // coastline from the first-person camera.
+            const int segments = 20;
+            const int rings = 3;
+            var vertices = new Vector3[1 + segments * rings + segments];
+            var triangles = new List<int>();
+            vertices[0] = new Vector3(0f, .78f, 1.5f);
+            for (int ring = 0; ring < rings; ring++)
+            {
+                float radius = ring == 0 ? .58f : ring == 1 ? .82f : 1f;
+                for (int i = 0; i < segments; i++)
+                {
+                    float angle = i * Mathf.PI * 2f / segments;
+                    float shape = 1f + .10f * Mathf.Sin(i * 2.3f) + .06f * Mathf.Cos(i * 4.1f);
+                    float x = Mathf.Cos(angle) * 15.2f * radius * shape;
+                    float z = Mathf.Sin(angle) * 11.6f * radius * shape + 1.5f;
+                    float height = ring == 0 ? .72f : ring == 1 ? .58f + .08f * Mathf.Sin(i * 1.7f) : .24f + .10f * Mathf.Sin(i * 2.1f);
+                    vertices[1 + ring * segments + i] = new Vector3(x, height, z);
+                }
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                int next = (i + 1) % segments;
+                triangles.Add(0); triangles.Add(1 + next); triangles.Add(1 + i);
+                for (int ring = 0; ring < rings - 1; ring++)
+                {
+                    int a = 1 + ring * segments + i;
+                    int b = 1 + ring * segments + next;
+                    int c = 1 + (ring + 1) * segments + i;
+                    int d = 1 + (ring + 1) * segments + next;
+                    triangles.Add(a); triangles.Add(b); triangles.Add(c);
+                    triangles.Add(b); triangles.Add(d); triangles.Add(c);
+                }
+                int outer = 1 + (rings - 1) * segments + i;
+                int outerNext = 1 + (rings - 1) * segments + next;
+                int bottom = 1 + rings * segments + i;
+                int bottomNext = 1 + rings * segments + next;
+                vertices[bottom] = new Vector3(vertices[outer].x, -.65f, vertices[outer].z);
+                vertices[bottomNext] = new Vector3(vertices[outerNext].x, -.65f, vertices[outerNext].z);
+                triangles.Add(outer); triangles.Add(bottom); triangles.Add(outerNext);
+                triangles.Add(outerNext); triangles.Add(bottom); triangles.Add(bottomNext);
+            }
+            var mesh = new Mesh { name = "Azure World Island Terrain" };
+            mesh.vertices = vertices; mesh.triangles = triangles.ToArray(); mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            var island = new GameObject("Azure World Island / Uneven Coastline");
+            island.AddComponent<MeshFilter>().sharedMesh = mesh;
+            island.AddComponent<MeshRenderer>().sharedMaterial = Material(new Color(.18f, .13f, .10f));
+            island.AddComponent<MeshCollider>().sharedMesh = mesh;
+        }
+
+        private void BuildShorelineBand()
+        {
+            const int segments = 20;
+            var vertices = new Vector3[segments * 2];
+            var triangles = new int[segments * 6];
+            for (int i = 0; i < segments; i++)
+            {
+                float angle = i * Mathf.PI * 2f / segments;
+                float shape = 1f + .10f * Mathf.Sin(i * 2.3f) + .06f * Mathf.Cos(i * 4.1f);
+                float innerX = Mathf.Cos(angle) * 14.0f * shape;
+                float innerZ = Mathf.Sin(angle) * 10.6f * shape + 1.5f;
+                float outerX = Mathf.Cos(angle) * 15.8f * shape;
+                float outerZ = Mathf.Sin(angle) * 12.1f * shape + 1.5f;
+                vertices[i] = new Vector3(innerX, .29f, innerZ);
+                vertices[segments + i] = new Vector3(outerX, .18f, outerZ);
+                int next = (i + 1) % segments;
+                int t = i * 6;
+                triangles[t] = i; triangles[t + 1] = segments + i; triangles[t + 2] = next;
+                triangles[t + 3] = next; triangles[t + 4] = segments + i; triangles[t + 5] = segments + next;
+            }
+            var mesh = new Mesh { name = "Azure World Shoreline Band" };
+            mesh.vertices = vertices; mesh.triangles = triangles; mesh.RecalculateNormals();
+            var shore = new GameObject("Azure World Shoreline / Low Coast");
+            shore.AddComponent<MeshFilter>().sharedMesh = mesh;
+            shore.AddComponent<MeshRenderer>().sharedMaterial = Material(new Color(.30f, .22f, .14f));
+        }
+
+        private void BuildScanMarkers()
+        {
+            var markerMaterial = new Color(.16f, .86f, .95f);
+            for (int i = 0; i < scanTargets.Count; i++)
+            {
+                var target = scanTargets[i];
+                var marker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                marker.name = "Scan Marker / " + target.name;
+                marker.transform.position = target.position + Vector3.up * (i == 2 ? 11.8f : 3.0f);
+                marker.transform.localScale = new Vector3(.16f, .05f, .16f);
+                var col = marker.GetComponent<Collider>(); if (col != null) SafeDestroy(col);
+                var renderer = marker.GetComponent<Renderer>(); renderer.sharedMaterial = Material(markerMaterial);
+                scanMarkers.Add(marker.transform); scanMarkerRenderers.Add(renderer);
+            }
+        }
+
+        private void AnimateWorld()
+        {
+            if (oceanSurface != null)
+            {
+                float wave = Mathf.Sin(Time.time * .8f) * .012f;
+                oceanSurface.position = new Vector3(0f, -.08f + wave, 0f);
+                if (oceanMaterial != null) oceanMaterial.SetColor("_BaseColor", Color.Lerp(new Color(.012f, .19f, .27f), new Color(.02f, .28f, .36f), (Mathf.Sin(Time.time * .55f) + 1f) * .5f));
+            }
+            for (int i = 0; i < scanMarkers.Count; i++)
+            {
+                float pulse = 1f + .16f * Mathf.Sin(Time.time * 2.2f + i);
+                scanMarkers[i].localScale = new Vector3(.16f * pulse, .05f, .16f * pulse);
+                if (scanMarkerRenderers[i] != null) scanMarkerRenderers[i].sharedMaterial.SetColor("_BaseColor", Color.Lerp(new Color(.05f, .55f, .65f), new Color(.2f, 1f, 1f), (Mathf.Sin(Time.time * 2.2f + i) + 1f) * .5f));
+            }
         }
 
         private void AddWaterDetail(Vector3 position, float diameter, Color color)
@@ -279,11 +427,10 @@ namespace StrategyRPG.Flight
             material.SetFloat("_Smoothness", .48f);
             foreach (var r in renderers) r.sharedMaterial = material;
 
-            // Remove any messy colliders on the FBX export and add a clean, aligned BoxCollider on root
+            // Imported building colliders are intentionally removed for this exploration slice.
+            // The structures remain visible scan targets, while the island terrain owns the
+            // walkable collision so the player is not trapped by invisible model bounds.
             foreach (var col in modelInstance.GetComponentsInChildren<Collider>()) SafeDestroy(col);
-            var box = root.AddComponent<BoxCollider>();
-            box.center = root.transform.InverseTransformPoint(bounds.center);
-            box.size = bounds.size;
 
             return root;
         }
@@ -301,7 +448,7 @@ namespace StrategyRPG.Flight
             var textObject = new GameObject("Planet Info", typeof(RectTransform), typeof(UnityEngine.UI.Text)); textObject.transform.SetParent(canvas.transform, false);
             var rect = textObject.GetComponent<RectTransform>(); rect.anchorMin = new Vector2(.04f, .74f); rect.anchorMax = new Vector2(.96f, .97f); rect.offsetMin = rect.offsetMax = Vector2.zero;
             hudText = textObject.GetComponent<UnityEngine.UI.Text>(); hudText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); hudText.fontSize = 22; hudText.color = Color.white;
-            hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk / Swim    Mouse  Look around    SPACE  Swim up    CTRL  Dive    ESC  Return to orbit\nPLATFORM / SHALLOW WATER";
+            hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Return to orbit\nISLAND SURFACE / OCEAN OBSERVATION ONLY";
         }
     }
 }

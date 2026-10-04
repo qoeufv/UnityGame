@@ -38,8 +38,19 @@ namespace StrategyRPG.Flight
             view=cameraObject.GetComponent<Camera>();view.tag="MainCamera";view.nearClipPlane=.2f;view.farClipPlane=2000;view.fieldOfView=60;
             view.clearFlags=CameraClearFlags.SolidColor;view.backgroundColor=new Color(.007f,.012f,.027f);
             follow=cameraObject.AddComponent<SpaceFollowCamera>();follow.target=ship.transform;
-            pilot.ResetFlight(Vector3.zero,Quaternion.identity);follow.ResetView();
-            BuildHUD();ChooseTarget(0);messageUntil=Time.unscaledTime+9;
+            BuildHUD();
+            int startTarget = PlanetSurfacePrototype.ReturningFromSurface ? PlanetSurfacePrototype.ReturnTargetIndex : 0;
+            ChooseTarget(startTarget >= 0 && startTarget < 4 ? startTarget : 0);
+            if (PlanetSurfacePrototype.ReturningFromSurface)
+            {
+                Vector3 returnPosition = target.position + Vector3.back * 90f + Vector3.up * 12f;
+                pilot.ResetFlight(returnPosition, Quaternion.LookRotation(target.position - returnPosition));
+                Notify("Returned to near orbit: " + targetName + ".");
+                PlanetSurfacePrototype.ReturningFromSurface = false;
+                PlanetSurfacePrototype.ReturnTargetIndex = -1;
+            }
+            else pilot.ResetFlight(Vector3.zero,Quaternion.identity);
+            follow.ResetView(); messageUntil=Time.unscaledTime+9;
         }
         private Material Material(Material template,Color color)
         {
@@ -95,8 +106,9 @@ namespace StrategyRPG.Flight
                 }
             }
             telemetry.text=$"{Mathf.Abs(pilot.Speed):0.0} m/s   {(pilot.Boosting?"BOOST":"CRUISE")}\nDiscoveries {discovered.Count} / 4";
-            targetLabel.text=$"DESTINATION  /  {targetName}\n{distance:0} m to centre   {(near?"[ F ] INTERACT":"APPROACH TARGET")}";
-            feedback.text=pilot.AtBoundary?"EDGE OF TEST SECTOR — turn back toward the destinations":Time.unscaledTime<messageUntil?message:near?"Slow down with SPACE, then press F to inspect.":"W thrust   A / D turn   Up / Down pitch   Shift boost";
+            string action = targetIndex == 1 || targetIndex == 3 ? "[ F ] LAND" : "[ F ] INTERACT";
+            targetLabel.text=$"DESTINATION  /  {targetName}\n{distance:0} m to centre   {(near?action:"APPROACH TARGET")}";
+            feedback.text=pilot.AtBoundary?"EDGE OF TEST SECTOR — turn back toward the destinations":Time.unscaledTime<messageUntil?message:near?"Slow down with SPACE, then press F to land / inspect.":"W thrust   A / D turn   Up / Down pitch   Shift boost";
         }
         private void LateUpdate()
         {
@@ -124,7 +136,7 @@ namespace StrategyRPG.Flight
             targetLabel=Label(canvasObject.transform,"Target",new Vector2(.68f,.79f),new Vector2(.98f,.95f),23);
             feedback=Label(canvasObject.transform,"Feedback",new Vector2(.03f,.12f),new Vector2(.97f,.19f),22);
             instructions=Label(canvasObject.transform,"Controls",new Vector2(.03f,.025f),new Vector2(.97f,.12f),19);
-            instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–4 / TAB  Destination    F  Inspect    R  Reset";
+            instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–4 / TAB  Destination    F  Land / Inspect    R  Reset";
             markerText=Label(canvasObject.transform,"Navigation",new Vector2(.5f,.5f),new Vector2(.5f,.5f),20);
             marker=markerText.rectTransform;marker.sizeDelta=new Vector2(250,60);markerText.alignment=TextAnchor.MiddleCenter;markerText.color=new Color(.3f,.85f,1);
         }

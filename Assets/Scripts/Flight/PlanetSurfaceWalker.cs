@@ -9,9 +9,11 @@ namespace StrategyRPG.Flight
         public float moveSpeed = 3.5f;
         public float swimSpeed = 2.4f;
         public float gravity = -14f;
+        public float jumpSpeed = 5.5f;
         public float swimVerticalSpeed = 2.2f;
         public float maxDiveDepth = 8f;
         public float waterLevel = -.08f;
+        public bool swimmingEnabled = false;
         public float platformTop = .65f;
         public Vector2 platformHalfExtents = new Vector2(18f, 16f);
         public Transform viewPivot;
@@ -58,14 +60,15 @@ namespace StrategyRPG.Flight
             float forward = (keys.wKey.isPressed ? 1 : 0) - (keys.sKey.isPressed ? 1 : 0);
             float strafe = (keys.dKey.isPressed ? 1 : 0) - (keys.aKey.isPressed ? 1 : 0);
             bool insidePlatform = Mathf.Abs(transform.position.x) < platformHalfExtents.x && Mathf.Abs(transform.position.z) < platformHalfExtents.y;
-            if (!IsSwimming && transform.position.y <= waterLevel + .45f) IsSwimming = true;
+            if (swimmingEnabled && !IsSwimming && transform.position.y <= waterLevel + .45f) IsSwimming = true;
+            if (!swimmingEnabled) IsSwimming = false;
             // Allow a player who swims back to the deck to regain walking controls.
             if (IsSwimming && insidePlatform && transform.position.y >= platformTop - .08f) IsSwimming = false;
             float speed = IsSwimming ? swimSpeed : moveSpeed;
             Vector3 move = (transform.forward * forward + transform.right * strafe).normalized * speed;
             if (keys.leftArrowKey.isPressed) transform.Rotate(Vector3.up, -90f * Time.deltaTime);
             if (keys.rightArrowKey.isPressed) transform.Rotate(Vector3.up, 90f * Time.deltaTime);
-            if (IsSwimming)
+            if (IsSwimming && swimmingEnabled)
             {
                 float verticalInput = (keys.spaceKey.isPressed ? 1f : 0f)
                     - (keys.leftCtrlKey.isPressed || keys.rightCtrlKey.isPressed ? 1f : 0f);
@@ -73,7 +76,10 @@ namespace StrategyRPG.Flight
                     ? Mathf.MoveTowards(verticalVelocity, 0f, swimVerticalSpeed * 3f * Time.deltaTime)
                     : verticalInput * swimVerticalSpeed;
             }
-            else if (motor.isGrounded) verticalVelocity = -1f;
+            else if (motor.isGrounded)
+            {
+                verticalVelocity = keys.spaceKey.wasPressedThisFrame ? jumpSpeed : -1f;
+            }
             else verticalVelocity += gravity * Time.deltaTime;
             move.y = verticalVelocity; motor.Move(move * Time.deltaTime);
             if (!IsSwimming && transform.position.y < platformTop && insidePlatform)
