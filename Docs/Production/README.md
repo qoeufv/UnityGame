@@ -12,6 +12,8 @@ This directory defines the working agreements for Game Frontier. It is intended 
 | [Release Process](ReleaseProcess.md) | Versioning, build profiles, release candidates, and GitHub Releases | Release owner |
 | [Asset and License Management](AssetManagement.md) | Provenance, attribution, import rules, and large-file policy | Art/tech art lead |
 | [Weekly Report Template](WeeklyReportTemplate.md) | Consistent weekly progress reporting | Project manager |
+| [Asset Register](AssetRegister.md) | Source, rights, status and usage of project assets | Art/tech art lead |
+| [Milestone Acceptance](MilestoneAcceptance.md) | Evidence required for Prototype, Vertical Slice, Alpha, Beta and Release | Project manager and QA lead |
 
 ## Current project baseline
 

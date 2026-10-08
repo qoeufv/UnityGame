@@ -10,6 +10,8 @@ This directory contains the product and game-design baseline for Frontier. It is
 | [Core Experience](CoreExperience.md) | The exploration loop from orbit to planet surface and back |
 | [Scope and Roadmap](ScopeAndRoadmap.md) | Current slice, explicit non-goals and sequencing principles |
 | [Planet Content Principles](PlanetContentPrinciples.md) | Rules for adding planets, environments, points of interest and future civilizations |
+| [Game Design Document](GameDesignDocument.md) | Complete gameplay, control, progression, content and vertical-slice baseline |
+| [Art Bible](ArtBible.md) | Visual identity, scale, materials, model standards and Azure World direction |
 
 ## How to use these documents
 
@@ -21,4 +23,3 @@ This directory contains the product and game-design baseline for Frontier. It is
 ## Current baseline
 
 The active product slice is a desktop third-person space-flight prototype with a first-person landing and exploration slice on Azure World. The current implementation uses runtime-generated environment and surface blockout geometry so movement, camera, landing and scanning can be evaluated before final art production.
-

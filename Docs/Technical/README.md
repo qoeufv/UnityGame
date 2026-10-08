@@ -9,6 +9,7 @@ This directory is the technical source of truth for the current Game Frontier pr
 | [Runtime Architecture](RuntimeArchitecture.md) | Scene ownership, runtime generation, flight-to-surface flow, state/data flow, input and camera boundaries, and interaction contracts. |
 | [Asset and Scene Pipeline](AssetAndScenePipeline.md) | Unity scene/bootstrap conventions, imported model and texture rules, generated content ownership, and build registration. |
 | [Technical Debt and Extension Plan](TechnicalDebtAndExtensionPlan.md) | Known limitations, risk order, and recommended interfaces for persistence, streaming, landing, missions, and future planets. |
+| [Architecture Decision Records](ADR/README.md) | Numbered decisions that explain long-lived technical choices and their consequences. |
 
 ## Scope and status
 

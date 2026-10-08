@@ -10,6 +10,7 @@ This directory is the project knowledge base for Game Frontier. It records produ
 | Technical | Runtime architecture, scene/data flow, asset pipeline and technical debt | [Technical README](Technical/README.md) |
 | Production | Git workflow, agent collaboration, QA, releases, asset records and weekly reports | [Production README](Production/README.md) |
 | Progress | Week-by-week implementation history | [Week 1](Week1Progress.md), [Week 2](Week2Progress.md), [Week 3](Week3Progress.md) |
+| Changes | Player-facing additions, changes, fixes and deferred work | [Changelog](CHANGELOG.md) |
 
 ## Current project baseline
 
