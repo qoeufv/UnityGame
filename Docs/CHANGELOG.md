@@ -6,6 +6,11 @@ All notable player-facing changes are recorded here. The project follows semanti
 
 ### Added
 
+- Shared pause overlay for the flight and planet-surface scenes.
+- Persistent play-session discovery and Azure World survey completion state.
+- A dedicated mission-complete panel that directs the player back to the docked ship.
+- One-click macOS and Windows development build commands under `Tools/Build Game Frontier`.
+- A verified macOS `0.1.0` standalone development build.
 - Third-person free-flight prototype with multiple selectable destinations.
 - Azure World landing and first-person island exploration.
 - Structure scanning, discovery progress and mission completion feedback.
@@ -15,6 +20,9 @@ All notable player-facing changes are recorded here. The project follows semanti
 
 ### Changed
 
+- The standalone build now starts in `SpaceFlightPrototype`; inactive HexMap work is excluded from builds.
+- Product metadata now identifies the application as Game Frontier `0.1.0` with bundle ID `com.gamefrontier.prototype`.
+- Completed scan markers disappear and remain completed when Azure World is revisited during the same play session.
 - Replaced the original hex/tile-map direction with direct space-flight exploration as the active product path.
 - Replaced the temporary floating Azure World platform with an irregular island blockout.
 - Returning from a surface scene now restores a near-orbit destination context.
@@ -29,4 +37,3 @@ All notable player-facing changes are recorded here. The project follows semanti
 
 - Rogue-map and fleet-tactics prototypes remain available as inactive reference work.
 - Swimming and underwater exploration are deferred until the surface loop is stable.
-

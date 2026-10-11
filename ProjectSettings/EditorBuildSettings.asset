@@ -6,6 +6,15 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
+    path: Assets/Scenes/SpaceFlightPrototype.unity
+    guid: 4b925178a0fe94a52a852bbc69734c5e
+  - enabled: 1
+    path: Assets/Scenes/Planet_AzureWorld.unity
+    guid: 5de5c7ef56ec545d19d2106bc9431e04
+  - enabled: 1
+    path: Assets/Scenes/Planet_PaleMoon.unity
+    guid: 17f4273aba1534005b9541b61e777168
+  - enabled: 0
     path: Assets/Scenes/HexMapScene.unity
     guid: 39df2d08a6c12443e908ab2fe0a7c023
   m_configObjects:

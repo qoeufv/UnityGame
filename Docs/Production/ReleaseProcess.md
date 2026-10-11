@@ -10,6 +10,21 @@ Use `MAJOR.MINOR.PATCH` for playable releases:
 
 Mark unfinished builds as `0.x.y`; the first public prototype can be `0.1.0`. Every release maps to one Git tag and one reviewed commit. The tag, Unity version, target platform, and build date belong in the release notes.
 
+## Local development builds
+
+Use the Unity editor menu commands:
+
+- `Tools → Build Game Frontier → macOS Development`
+- `Tools → Build Game Frontier → Windows Development`
+
+The build script includes `SpaceFlightPrototype`, `Planet_AzureWorld` and `Planet_PaleMoon` in that order. Output is written below `Builds/`, which is ignored by Git. A successful build reports its output path and size in the Unity log.
+
+For a command-line macOS build, run Unity with:
+
+```text
+-batchmode -quit -projectPath <project> -executeMethod StrategyRPG.Editor.PrototypeBuild.BuildMacDevelopment
+```
+
 ## Release candidate
 
 1. Freeze feature work on the candidate branch.

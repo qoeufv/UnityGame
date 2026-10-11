@@ -25,6 +25,7 @@ namespace StrategyRPG.Flight
         private readonly List<Object> resources = new List<Object>();
         private float messageUntil;
         private string message = "Pilot the ship to the stargate. Approach slowly, then press F.";
+        private PrototypePauseOverlay pauseOverlay;
 
         private void Start()
         {
@@ -39,6 +40,7 @@ namespace StrategyRPG.Flight
             view.clearFlags=CameraClearFlags.SolidColor;view.backgroundColor=new Color(.007f,.012f,.027f);
             follow=cameraObject.AddComponent<SpaceFollowCamera>();follow.target=ship.transform;
             BuildHUD();
+            discovered.UnionWith(PrototypeSessionState.DiscoveredDestinations);
             int startTarget = PlanetSurfacePrototype.ReturningFromSurface ? PlanetSurfacePrototype.ReturnTargetIndex : 0;
             ChooseTarget(startTarget >= 0 && startTarget < 4 ? startTarget : 0);
             if (PlanetSurfacePrototype.ReturningFromSurface)
@@ -83,6 +85,8 @@ namespace StrategyRPG.Flight
             var keys=Keyboard.current;
             if(keys!=null)
             {
+                if(keys.escapeKey.wasPressedThisFrame){pauseOverlay.Toggle();return;}
+                if(pauseOverlay!=null && pauseOverlay.IsPaused)return;
                 if(keys.digit1Key.wasPressedThisFrame)ChooseTarget(0);
                 if(keys.digit2Key.wasPressedThisFrame)ChooseTarget(1);
                 if(keys.digit3Key.wasPressedThisFrame)ChooseTarget(2);
@@ -100,6 +104,7 @@ namespace StrategyRPG.Flight
                 else
                 {
                     discovered.Add(targetIndex);
+                    PrototypeSessionState.MarkDestinationDiscovered(targetIndex);
                     if (targetIndex == 1) { Notify("Entering Azure World orbit..."); SceneManager.LoadScene("Planet_AzureWorld"); }
                     else if (targetIndex == 3) { Notify("Entering Pale Moon orbit..."); SceneManager.LoadScene("Planet_PaleMoon"); }
                     else Notify(targetIndex==0?"Stargate reached. Flight sample complete; jump travel is not enabled yet.":targetName+" scanned. Choose another destination to explore.");
@@ -139,6 +144,7 @@ namespace StrategyRPG.Flight
             instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–4 / TAB  Destination    F  Land / Inspect    R  Reset";
             markerText=Label(canvasObject.transform,"Navigation",new Vector2(.5f,.5f),new Vector2(.5f,.5f),20);
             marker=markerText.rectTransform;marker.sizeDelta=new Vector2(250,60);markerText.alignment=TextAnchor.MiddleCenter;markerText.color=new Color(.3f,.85f,1);
+            pauseOverlay=gameObject.AddComponent<PrototypePauseOverlay>();pauseOverlay.Build(canvasObject.transform,string.Empty,false,pilot,follow);
         }
         private Text Label(Transform parent,string name,Vector2 min,Vector2 max,int size)
         {

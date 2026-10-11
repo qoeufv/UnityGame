@@ -24,6 +24,8 @@ namespace StrategyRPG.Flight
         private float yaw;
         private PlanetSurfaceWalker walker;
         private UnityEngine.UI.Text hudText;
+        private UnityEngine.UI.Text missionCompleteText;
+        private PrototypePauseOverlay pauseOverlay;
         private readonly List<Transform> scanTargets = new List<Transform>();
         private readonly HashSet<int> scanned = new HashSet<int>();
         private string scanMessage = "Explore the platform and scan a structure.";
@@ -60,13 +62,23 @@ namespace StrategyRPG.Flight
             // Keep the ship visible from the landing pad while leaving the player a clear walking start.
             dockedShip = BuildDockedShip(new Vector3(-3.6f, .78f, -4.0f));
             BuildHud();
+            RestoreSurveyState();
         }
 
         private void Update()
         {
             AnimateWorld();
             var keys = Keyboard.current;
-            if (keys != null && keys.escapeKey.wasPressedThisFrame) ReturnToOrbit();
+            if (keys != null && keys.escapeKey.wasPressedThisFrame)
+            {
+                pauseOverlay.Toggle();
+                return;
+            }
+            if (pauseOverlay != null && pauseOverlay.IsPaused)
+            {
+                if (keys != null && keys.rKey.wasPressedThisFrame) ReturnToOrbit();
+                return;
+            }
             if (keys != null && keys.fKey.wasPressedThisFrame)
             {
                 if (IsNearDockedShip()) ReturnToOrbit();
@@ -100,6 +112,22 @@ namespace StrategyRPG.Flight
             return "Walk near a structure and look at it to scan.";
         }
 
+        private void RestoreSurveyState()
+        {
+            if (!PrototypeSessionState.AzureSurveyComplete) return;
+            explorationComplete = true;
+            for (int i = 0; i < scanTargets.Count; i++)
+            {
+                scanned.Add(i);
+                if (i < scanMarkers.Count && scanMarkers[i] != null) scanMarkers[i].gameObject.SetActive(false);
+            }
+            if (missionCompleteText != null)
+            {
+                missionCompleteText.transform.parent.gameObject.SetActive(true);
+                missionCompleteText.text = "SURVEY COMPLETE\nAzure World data uploaded\n\nReturn to the docked ship";
+            }
+        }
+
         private void TryScan()
         {
             if (walker == null) return;
@@ -108,11 +136,19 @@ namespace StrategyRPG.Flight
                 if (scanned.Contains(i) || !walker.IsWithinInteractionDistance(scanTargets[i])) continue;
                 if (!HitsTarget(scanTargets[i])) continue;
                 scanned.Add(i);
+                if (i < scanMarkers.Count && scanMarkers[i] != null) scanMarkers[i].gameObject.SetActive(false);
                 scanMessage = i == 0 ? "Research laboratory scanned: oceanic climate research is active." : i == 1 ? "Residential habitat scanned: 36 crew signatures recorded." : i == 2 ? "Communication tower scanned: an unknown signal is repeating below the sea." : "Landing platform scanned: orbital approach path is clear.";
                 if (scanned.Count == scanTargets.Count)
                 {
                     explorationComplete = true;
+                    PrototypeSessionState.AzureSurveyComplete = true;
+                    PrototypeSessionState.MarkDestinationDiscovered(1);
                     scanMessage = "Azure World exploration complete: all four structures have been surveyed.";
+                    if (missionCompleteText != null)
+                    {
+                        missionCompleteText.transform.parent.gameObject.SetActive(true);
+                        missionCompleteText.text = "SURVEY COMPLETE\nAzure World data uploaded\n\nReturn to the docked ship";
+                    }
                 }
                 scanMessageUntil = Time.unscaledTime + 6f;
                 return;
@@ -448,7 +484,27 @@ namespace StrategyRPG.Flight
             var textObject = new GameObject("Planet Info", typeof(RectTransform), typeof(UnityEngine.UI.Text)); textObject.transform.SetParent(canvas.transform, false);
             var rect = textObject.GetComponent<RectTransform>(); rect.anchorMin = new Vector2(.04f, .74f); rect.anchorMax = new Vector2(.96f, .97f); rect.offsetMin = rect.offsetMax = Vector2.zero;
             hudText = textObject.GetComponent<UnityEngine.UI.Text>(); hudText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); hudText.fontSize = 22; hudText.color = Color.white;
-            hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Return to orbit\nISLAND SURFACE / OCEAN OBSERVATION ONLY";
+            hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Pause\nISLAND SURFACE / OCEAN OBSERVATION ONLY";
+
+            var completionPanel = new GameObject("Mission Complete Panel", typeof(RectTransform), typeof(Image));
+            completionPanel.transform.SetParent(canvas.transform, false);
+            var completionRect = completionPanel.GetComponent<RectTransform>();
+            completionRect.anchorMin = new Vector2(.68f, .56f); completionRect.anchorMax = new Vector2(.96f, .76f);
+            completionRect.offsetMin = completionRect.offsetMax = Vector2.zero;
+            completionPanel.GetComponent<Image>().color = new Color(.02f, .11f, .14f, .92f);
+            var completionTextObject = new GameObject("Mission Complete Text", typeof(RectTransform), typeof(Text));
+            completionTextObject.transform.SetParent(completionPanel.transform, false);
+            var completionTextRect = completionTextObject.GetComponent<RectTransform>();
+            completionTextRect.anchorMin = new Vector2(.06f, .08f); completionTextRect.anchorMax = new Vector2(.94f, .92f);
+            completionTextRect.offsetMin = completionTextRect.offsetMax = Vector2.zero;
+            missionCompleteText = completionTextObject.GetComponent<Text>();
+            missionCompleteText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            missionCompleteText.fontSize = 23; missionCompleteText.alignment = TextAnchor.MiddleCenter;
+            missionCompleteText.color = new Color(.55f, .95f, 1f);
+            completionPanel.SetActive(false);
+
+            pauseOverlay = gameObject.AddComponent<PrototypePauseOverlay>();
+            pauseOverlay.Build(canvas.transform, "R  Return to orbit", true, walker);
         }
     }
 }
