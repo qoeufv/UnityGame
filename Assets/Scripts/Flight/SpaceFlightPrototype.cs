@@ -26,9 +26,15 @@ namespace StrategyRPG.Flight
         private float messageUntil;
         private string message = "Pilot the ship to the stargate. Approach slowly, then press F.";
         private PrototypePauseOverlay pauseOverlay;
+        private PrototypeStartMenu startMenu;
+        private GameObject destinationLogPanel;
+        private Text destinationLogText;
+        private bool destinationLogOpen;
 
         private void Start()
         {
+            PrototypeSessionState.EnsureLoaded();
+            bool returningFromSurface = PlanetSurfacePrototype.ReturningFromSurface;
             environment = gameObject.AddComponent<SpaceFlightEnvironment>();
             environment.litTemplate=litTemplate; environment.unlitTemplate=unlitTemplate; environment.stargatePrefab=stargatePrefab;
             environment.Build();
@@ -41,9 +47,9 @@ namespace StrategyRPG.Flight
             follow=cameraObject.AddComponent<SpaceFollowCamera>();follow.target=ship.transform;
             BuildHUD();
             discovered.UnionWith(PrototypeSessionState.DiscoveredDestinations);
-            int startTarget = PlanetSurfacePrototype.ReturningFromSurface ? PlanetSurfacePrototype.ReturnTargetIndex : 0;
+            int startTarget = returningFromSurface ? PlanetSurfacePrototype.ReturnTargetIndex : 0;
             ChooseTarget(startTarget >= 0 && startTarget < 4 ? startTarget : 0);
-            if (PlanetSurfacePrototype.ReturningFromSurface)
+            if (returningFromSurface)
             {
                 Vector3 returnPosition = target.position + Vector3.back * 90f + Vector3.up * 12f;
                 pilot.ResetFlight(returnPosition, Quaternion.LookRotation(target.position - returnPosition));
@@ -53,6 +59,7 @@ namespace StrategyRPG.Flight
             }
             else pilot.ResetFlight(Vector3.zero,Quaternion.identity);
             follow.ResetView(); messageUntil=Time.unscaledTime+9;
+            if (!returningFromSurface) startMenu.Show();
         }
         private Material Material(Material template,Color color)
         {
@@ -85,6 +92,13 @@ namespace StrategyRPG.Flight
             var keys=Keyboard.current;
             if(keys!=null)
             {
+                if(startMenu!=null && startMenu.IsOpen)return;
+                if(keys.lKey.wasPressedThisFrame){SetDestinationLogOpen(!destinationLogOpen);return;}
+                if(destinationLogOpen)
+                {
+                    if(keys.escapeKey.wasPressedThisFrame)SetDestinationLogOpen(false);
+                    return;
+                }
                 if(keys.escapeKey.wasPressedThisFrame){pauseOverlay.Toggle();return;}
                 if(pauseOverlay!=null && pauseOverlay.IsPaused)return;
                 if(keys.digit1Key.wasPressedThisFrame)ChooseTarget(0);
@@ -141,10 +155,57 @@ namespace StrategyRPG.Flight
             targetLabel=Label(canvasObject.transform,"Target",new Vector2(.68f,.79f),new Vector2(.98f,.95f),23);
             feedback=Label(canvasObject.transform,"Feedback",new Vector2(.03f,.12f),new Vector2(.97f,.19f),22);
             instructions=Label(canvasObject.transform,"Controls",new Vector2(.03f,.025f),new Vector2(.97f,.12f),19);
-            instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–4 / TAB  Destination    F  Land / Inspect    R  Reset";
+            instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–4 / TAB  Destination    F  Land / Inspect    L  Destination log    R  Reset";
             markerText=Label(canvasObject.transform,"Navigation",new Vector2(.5f,.5f),new Vector2(.5f,.5f),20);
             marker=markerText.rectTransform;marker.sizeDelta=new Vector2(250,60);markerText.alignment=TextAnchor.MiddleCenter;markerText.color=new Color(.3f,.85f,1);
             pauseOverlay=gameObject.AddComponent<PrototypePauseOverlay>();pauseOverlay.Build(canvasObject.transform,string.Empty,false,pilot,follow);
+            startMenu=gameObject.AddComponent<PrototypeStartMenu>();
+            startMenu.Build(canvasObject.transform,pilot,follow,StartNewGame,ContinueGame);
+            BuildDestinationLog(canvasObject.transform);
+        }
+        private void StartNewGame()
+        {
+            PrototypeSessionState.Reset();
+            discovered.Clear();
+            ChooseTarget(0);
+            pilot.ResetFlight(Vector3.zero,Quaternion.identity);
+            foreach(var trail in pilot.GetComponentsInChildren<TrailRenderer>())trail.Clear();
+            follow.ResetView();
+            Notify("New expedition started. Select a destination to explore.");
+        }
+        private void ContinueGame()
+        {
+            discovered.Clear();
+            discovered.UnionWith(PrototypeSessionState.DiscoveredDestinations);
+            Notify(PrototypeSessionState.HasSave?"Saved expedition loaded.":"Expedition started.");
+        }
+        private void BuildDestinationLog(Transform canvas)
+        {
+            destinationLogPanel=new GameObject("Destination Log",typeof(RectTransform),typeof(Image));destinationLogPanel.transform.SetParent(canvas,false);
+            var panelRect=destinationLogPanel.GetComponent<RectTransform>();panelRect.anchorMin=new Vector2(.20f,.16f);panelRect.anchorMax=new Vector2(.80f,.84f);panelRect.offsetMin=panelRect.offsetMax=Vector2.zero;
+            destinationLogPanel.GetComponent<Image>().color=new Color(.008f,.025f,.045f,.96f);
+            destinationLogText=Label(destinationLogPanel.transform,"Destination Log Text",new Vector2(.07f,.07f),new Vector2(.93f,.93f),24);
+            destinationLogText.alignment=TextAnchor.UpperLeft;
+            destinationLogPanel.SetActive(false);
+        }
+        private void SetDestinationLogOpen(bool open)
+        {
+            destinationLogOpen=open;
+            destinationLogPanel.SetActive(open);
+            pilot.enabled=!open;follow.enabled=!open;Time.timeScale=open?0f:1f;
+            Cursor.lockState=CursorLockMode.None;Cursor.visible=true;
+            if(!open)return;
+            string azureSurvey=PrototypeSessionState.AzureSurveyComplete?"SURVEY COMPLETE":"SURVEY PENDING";
+            destinationLogText.text="DESTINATION LOG\n<size=18>Exploration records are saved automatically.</size>\n\n"+
+                DestinationLine(0,"ANCIENT GATE","Dormant transit structure. Jump controls remain offline.")+"\n\n"+
+                DestinationLine(1,"AZURE WORLD","Civilized ocean world  /  "+azureSurvey)+"\n\n"+
+                DestinationLine(2,"RELAY STATION","Remote communications and navigation platform.")+"\n\n"+
+                DestinationLine(3,"PALE MOON","Airless satellite available for surface approach.")+"\n\n"+
+                "[ L / ESC ]  Close log";
+        }
+        private string DestinationLine(int index,string name,string description)
+        {
+            return discovered.Contains(index)?"◆  "+name+"  /  DISCOVERED\n     "+description:"◇  UNIDENTIFIED SIGNAL 0"+(index+1)+"\n     Approach and interact to identify this location.";
         }
         private Text Label(Transform parent,string name,Vector2 min,Vector2 max,int size)
         {

@@ -20,16 +20,22 @@ This week focused on converting the exploration prototype into a more complete v
 - Disabled the legacy HexMap scene in the active build list while keeping its source files.
 - Updated product metadata to Game Frontier version `0.1.0` and bundle identifier `com.gamefrontier.prototype`.
 - Generated and launched a standalone macOS development build.
+- Added a standalone start menu with New Game, Continue, Settings and Quit actions.
+- Added functional fullscreen and mute controls to the settings page.
+- Added versioned JSON save data for discoveries and Azure World survey completion.
+- Added automatic saving after each discovery and completed survey.
+- Added an in-flight destination log for discovered locations and survey status.
 
 ## Current playable loop
 
 1. Launch the standalone Game Frontier application.
-2. Pilot the ship and select a destination.
-3. Approach Azure World slowly and land.
-4. Explore the island, jump and scan four marked structures.
-5. Read the survey-complete panel and return to the docked ship.
-6. Return to near orbit with the discovery state preserved.
-7. Pause or resume with `ESC` in either gameplay mode.
+2. Continue saved progress or start a new expedition.
+3. Pilot the ship and select a destination.
+4. Approach Azure World slowly and land.
+5. Explore the island, jump and scan four marked structures.
+6. Read the survey-complete panel and return to the docked ship.
+7. Return to near orbit with the discovery state saved to disk.
+8. Pause or resume with `ESC` in either gameplay mode.
 
 ## Validation
 
@@ -39,18 +45,20 @@ This week focused on converting the exploration prototype into a more complete v
 - The `.app` reports product name `Game Frontier`, version `0.1.0` and bundle ID `com.gamefrontier.prototype`.
 - A standalone smoke test confirmed that the application starts in Space Flight.
 - The standalone pause overlay was opened and resumed successfully.
+- The rebuilt standalone application displayed the start menu and settings page correctly.
+- The menu transition into live flight was verified in the standalone application.
+- The in-flight destination log was opened and visually checked in the rebuilt standalone application.
 
 ## Known limitations
 
 - The macOS build is a local unsigned development build and may trigger Gatekeeper on another computer.
 - A Windows build requires the Windows Build Support module and has not yet been generated this week.
-- Session progress is memory-only and is not saved after the application closes.
 - The mission-complete panel and pause overlay use prototype runtime UI rather than final visual assets.
+- Continue restores exploration progress but does not yet restore the ship's exact last position.
 - Full manual testing of the landing, four scans and return-to-orbit flow is still required in the standalone build.
 
 ## Next priorities
 
 - Complete a full standalone end-to-end traversal test.
-- Add a start menu with New Game, Continue, Settings and Quit.
-- Introduce a versioned save-data service for discoveries and mission completion.
+- Improve flight arrival feedback and planet approach readability.
 - Package the macOS build and create the first GitHub pre-release after final smoke testing.

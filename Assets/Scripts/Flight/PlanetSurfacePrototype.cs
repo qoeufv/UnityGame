@@ -141,7 +141,7 @@ namespace StrategyRPG.Flight
                 if (scanned.Count == scanTargets.Count)
                 {
                     explorationComplete = true;
-                    PrototypeSessionState.AzureSurveyComplete = true;
+                    PrototypeSessionState.MarkAzureSurveyComplete();
                     PrototypeSessionState.MarkDestinationDiscovered(1);
                     scanMessage = "Azure World exploration complete: all four structures have been surveyed.";
                     if (missionCompleteText != null)

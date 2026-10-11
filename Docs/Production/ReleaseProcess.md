@@ -19,6 +19,8 @@ Use the Unity editor menu commands:
 
 The build script includes `SpaceFlightPrototype`, `Planet_AzureWorld` and `Planet_PaleMoon` in that order. Output is written below `Builds/`, which is ignored by Git. A successful build reports its output path and size in the Unity log.
 
+Standalone builds open on a keyboard-first menu. Press `Enter` to begin or continue, `N` to clear progress and start a new expedition, `S` for fullscreen and audio settings, or `Q` to quit. Exploration progress is stored as versioned JSON in Unity's platform-specific persistent data directory.
+
 For a command-line macOS build, run Unity with:
 
 ```text

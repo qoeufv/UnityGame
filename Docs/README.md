@@ -17,7 +17,8 @@ This directory is the project knowledge base for Game Frontier. It records produ
 - Unity `6000.6.0f1`
 - Windows and macOS desktop target
 - Current playable focus: third-person space flight, Azure World landing and first-person island exploration
-- Current prototype loop: approach planet → land → walk and scan structures → return to near orbit
+- Current prototype loop: start or continue → approach planet → land → walk and scan structures → return to near orbit
+- Current persistence: versioned local save for discoveries and completed Azure World survey progress
 
 ## Documentation rules
 
