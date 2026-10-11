@@ -15,6 +15,10 @@ All notable player-facing changes are recorded here. The project follows semanti
 - Versioned local save data for discoveries and Azure World survey completion.
 - Functional fullscreen and audio controls in the start-menu settings page.
 - An in-flight destination log that records discoveries and Azure World survey status.
+- Ember Reach and Verdant Veil as new discoverable orbital destinations.
+- A dedicated Pale Moon landing surface with generated crater terrain, crater rims, low-visibility lighting and a docked return ship.
+- A four-objective Pale Moon signal-tracing mission with unique scan results and completion feedback.
+- Independent saved completion state and destination-log status for the Pale Moon survey.
 - Third-person free-flight prototype with multiple selectable destinations.
 - Azure World landing and first-person island exploration.
 - Structure scanning, discovery progress and mission completion feedback.
@@ -30,6 +34,9 @@ All notable player-facing changes are recorded here. The project follows semanti
 - Replaced the original hex/tile-map direction with direct space-flight exploration as the active product path.
 - Replaced the temporary floating Azure World platform with an irregular island blockout.
 - Returning from a surface scene now restores a near-orbit destination context.
+- Surface mission text, scan results and completion panels now adapt to Azure World or Pale Moon.
+- Flight arrival guidance now separates approach, braking and interaction readiness and reports distance to a planet's surface.
+- The surface HUD now uses a translucent, constrained information panel for improved readability and a clearer view of the environment.
 
 ### Fixed
 
@@ -41,3 +48,4 @@ All notable player-facing changes are recorded here. The project follows semanti
 
 - Rogue-map and fleet-tactics prototypes remain available as inactive reference work.
 - Swimming and underwater exploration are deferred until the surface loop is stable.
+- Authored Pale Moon terrain, landmarks, audio and environmental effects remain a later production-art pass; the current lunar surface uses generated prototype content.

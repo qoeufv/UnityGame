@@ -6,7 +6,7 @@
 
 ## Focus
 
-This week focused on converting the exploration prototype into a more complete vertical-slice candidate that can be paused, resumed, built and shared without requiring the Unity editor.
+This week focused on converting the exploration prototype into a more complete vertical-slice candidate that can be paused, resumed, built and shared without requiring the Unity editor. The content pass also expanded the playable landing experience beyond Azure World with a distinct Pale Moon surface and mission.
 
 ## Completed
 
@@ -25,6 +25,17 @@ This week focused on converting the exploration prototype into a more complete v
 - Added versioned JSON save data for discoveries and Azure World survey completion.
 - Added automatic saving after each discovery and completed survey.
 - Added an in-flight destination log for discovered locations and survey status.
+- Added Ember Reach and Verdant Veil as discoverable orbital destinations, expanding the sector from four to six points of interest.
+- Added arrival guidance for approach, braking and landing readiness, including distance-to-surface reporting.
+
+## Implemented, pending validation
+
+- Added a dedicated Pale Moon surface layout with uneven crater terrain, crater rims, low-visibility lighting and a nearby docked ship.
+- Added a Pale Moon signal-tracing mission with four distinct landmarks: an abandoned survey mast, crashed navigation probe, subsurface anomaly and emergency landing beacon.
+- Added separate Pale Moon scan results, completion messaging and return-to-orbit context.
+- Extended the versioned save data so Azure World and Pale Moon survey completion are stored independently.
+- Added Pale Moon mission status to the in-flight destination log.
+- Improved surface HUD readability with a translucent information panel and a narrower layout that leaves more of the environment visible.
 
 ## Current playable loop
 
@@ -37,6 +48,8 @@ This week focused on converting the exploration prototype into a more complete v
 7. Return to near orbit with the discovery state saved to disk.
 8. Pause or resume with `ESC` in either gameplay mode.
 
+Pale Moon now follows the same high-level loop with a different environment and objective: approach the moon, land on the crater field, trace four surface signals and return to the docked ship. Its completion state is independent from the Azure World survey.
+
 ## Validation
 
 - Unity `6000.6.0f1` batch compilation completed successfully.
@@ -48,6 +61,9 @@ This week focused on converting the exploration prototype into a more complete v
 - The rebuilt standalone application displayed the start menu and settings page correctly.
 - The menu transition into live flight was verified in the standalone application.
 - The in-flight destination log was opened and visually checked in the rebuilt standalone application.
+- The six-destination sector, Ember Reach selection and revised arrival HUD were visually checked in the rebuilt standalone application.
+
+The complete content pass compiles without C# errors and is included in the rebuilt standalone application. Pale Moon Play Mode inspection and full standalone traversal validation are still pending.
 
 ## Known limitations
 
@@ -56,9 +72,13 @@ This week focused on converting the exploration prototype into a more complete v
 - The mission-complete panel and pause overlay use prototype runtime UI rather than final visual assets.
 - Continue restores exploration progress but does not yet restore the ship's exact last position.
 - Full manual testing of the landing, four scans and return-to-orbit flow is still required in the standalone build.
+- Pale Moon currently uses generated prototype geometry for its landmarks and terrain; authored lunar assets, audio and environmental effects are still required for visual production quality.
+- Pale Moon traversal boundaries, all four scan sightlines and its saved completion restore must be verified in Play Mode and in the rebuilt standalone application.
 
 ## Next priorities
 
-- Complete a full standalone end-to-end traversal test.
-- Improve flight arrival feedback and planet approach readability.
+- Visually inspect the Pale Moon scene, then complete its full landing, four-signal and return-to-orbit traversal.
+- Complete a full standalone end-to-end traversal test for both Azure World and Pale Moon, including save-and-relaunch checks.
+- Add authored atmosphere, surface audio and landmark assets after both traversal loops are stable.
+- Continue replacing prototype surface landmarks and HUD elements with reusable authored content and UI prefabs.
 - Package the macOS build and create the first GitHub pre-release after final smoke testing.

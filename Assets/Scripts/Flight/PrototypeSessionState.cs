@@ -14,17 +14,20 @@ namespace StrategyRPG.Flight
             public int version = CurrentVersion;
             public List<int> discoveredDestinations = new List<int>();
             public bool azureSurveyComplete;
+            public bool paleMoonSurveyComplete;
             public string savedAtUtc;
         }
 
-        private const int CurrentVersion = 1;
+        private const int CurrentVersion = 2;
         private const string SaveFileName = "prototype-save.json";
         private static readonly HashSet<int> discoveredDestinations = new HashSet<int>();
         private static bool loaded;
         private static bool azureSurveyComplete;
+        private static bool paleMoonSurveyComplete;
 
         public static IEnumerable<int> DiscoveredDestinations { get { EnsureLoaded(); return discoveredDestinations; } }
         public static bool AzureSurveyComplete { get { EnsureLoaded(); return azureSurveyComplete; } }
+        public static bool PaleMoonSurveyComplete { get { EnsureLoaded(); return paleMoonSurveyComplete; } }
         public static bool HasSave { get { EnsureLoaded(); return File.Exists(SavePath); } }
         public static string SavePath => Path.Combine(Application.persistentDataPath, SaveFileName);
 
@@ -34,6 +37,7 @@ namespace StrategyRPG.Flight
             loaded = true;
             discoveredDestinations.Clear();
             azureSurveyComplete = false;
+            paleMoonSurveyComplete = false;
             if (!File.Exists(SavePath)) return;
 
             try
@@ -42,8 +46,9 @@ namespace StrategyRPG.Flight
                 if (data == null || data.version > CurrentVersion) return;
                 if (data.discoveredDestinations != null)
                     foreach (int destination in data.discoveredDestinations)
-                        if (destination >= 0 && destination < 4) discoveredDestinations.Add(destination);
+                        if (destination >= 0 && destination < 6) discoveredDestinations.Add(destination);
                 azureSurveyComplete = data.azureSurveyComplete;
+                paleMoonSurveyComplete = data.paleMoonSurveyComplete;
             }
             catch (Exception exception)
             {
@@ -65,11 +70,20 @@ namespace StrategyRPG.Flight
             Save();
         }
 
+        public static void MarkPaleMoonSurveyComplete()
+        {
+            EnsureLoaded();
+            if (paleMoonSurveyComplete) return;
+            paleMoonSurveyComplete = true;
+            Save();
+        }
+
         public static void Reset()
         {
             loaded = true;
             discoveredDestinations.Clear();
             azureSurveyComplete = false;
+            paleMoonSurveyComplete = false;
             try
             {
                 if (File.Exists(SavePath)) File.Delete(SavePath);
@@ -87,6 +101,7 @@ namespace StrategyRPG.Flight
                 version = CurrentVersion,
                 discoveredDestinations = new List<int>(discoveredDestinations),
                 azureSurveyComplete = azureSurveyComplete,
+                paleMoonSurveyComplete = paleMoonSurveyComplete,
                 savedAtUtc = DateTime.UtcNow.ToString("O")
             };
 

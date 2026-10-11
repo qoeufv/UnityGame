@@ -9,6 +9,7 @@ namespace StrategyRPG.Flight
     /// <summary>Independent flight sample: environment, replaceable ship silhouette and navigation HUD.</summary>
     public class SpaceFlightPrototype : MonoBehaviour
     {
+        private const int DestinationCount = 6;
         public Material litTemplate, unlitTemplate;
         public GameObject stargatePrefab;
         private SpaceFlightEnvironment environment;
@@ -48,7 +49,7 @@ namespace StrategyRPG.Flight
             BuildHUD();
             discovered.UnionWith(PrototypeSessionState.DiscoveredDestinations);
             int startTarget = returningFromSurface ? PlanetSurfacePrototype.ReturnTargetIndex : 0;
-            ChooseTarget(startTarget >= 0 && startTarget < 4 ? startTarget : 0);
+            ChooseTarget(startTarget >= 0 && startTarget < DestinationCount ? startTarget : 0);
             if (returningFromSurface)
             {
                 Vector3 returnPosition = target.position + Vector3.back * 90f + Vector3.up * 12f;
@@ -105,12 +106,15 @@ namespace StrategyRPG.Flight
                 if(keys.digit2Key.wasPressedThisFrame)ChooseTarget(1);
                 if(keys.digit3Key.wasPressedThisFrame)ChooseTarget(2);
                 if(keys.digit4Key.wasPressedThisFrame)ChooseTarget(3);
-                if(keys.tabKey.wasPressedThisFrame)ChooseTarget((targetIndex+1)%4);
+                if(keys.digit5Key.wasPressedThisFrame)ChooseTarget(4);
+                if(keys.digit6Key.wasPressedThisFrame)ChooseTarget(5);
+                if(keys.tabKey.wasPressedThisFrame)ChooseTarget((targetIndex+1)%DestinationCount);
                 if(keys.rKey.wasPressedThisFrame){pilot.ResetFlight(Vector3.zero,Quaternion.identity);foreach(var trail in pilot.GetComponentsInChildren<TrailRenderer>())trail.Clear();follow.ResetView();Notify("Returned to departure point.");}
             }
             float distance=Vector3.Distance(pilot.transform.position,target.position);
-            float approach=targetIndex==1?75:targetIndex==3?35:targetIndex==2?16:22;
+            float approach=targetIndex==1?75:targetIndex==3?35:targetIndex==2?16:targetIndex>=4?42:22;
             bool near=distance<=approach;
+            bool slowEnough=Mathf.Abs(pilot.Speed)<=5f;
             if(keys!=null && keys.fKey.wasPressedThisFrame)
             {
                 if(!near)Notify("Approach the selected destination first.");
@@ -124,10 +128,15 @@ namespace StrategyRPG.Flight
                     else Notify(targetIndex==0?"Stargate reached. Flight sample complete; jump travel is not enabled yet.":targetName+" scanned. Choose another destination to explore.");
                 }
             }
-            telemetry.text=$"{Mathf.Abs(pilot.Speed):0.0} m/s   {(pilot.Boosting?"BOOST":"CRUISE")}\nDiscoveries {discovered.Count} / 4";
-            string action = targetIndex == 1 || targetIndex == 3 ? "[ F ] LAND" : "[ F ] INTERACT";
-            targetLabel.text=$"DESTINATION  /  {targetName}\n{distance:0} m to centre   {(near?action:"APPROACH TARGET")}";
-            feedback.text=pilot.AtBoundary?"EDGE OF TEST SECTOR — turn back toward the destinations":Time.unscaledTime<messageUntil?message:near?"Slow down with SPACE, then press F to land / inspect.":"W thrust   A / D turn   Up / Down pitch   Shift boost";
+            telemetry.text=$"{Mathf.Abs(pilot.Speed):0.0} m/s   {(pilot.Boosting?"BOOST":"CRUISE")}\nDiscoveries {discovered.Count} / {DestinationCount}";
+            bool landable=targetIndex==1 || targetIndex==3;
+            float surfaceRadius=targetIndex==1?45f:targetIndex==3?14f:targetIndex==4?24f:targetIndex==5?32f:0f;
+            float visibleDistance=Mathf.Max(0f,distance-surfaceRadius);
+            string action=!near?"APPROACH TARGET":!slowEnough?"[ SPACE ] BRAKE TO 5 m/s":landable?"[ F ] LAND":"[ F ] INSPECT";
+            string access=landable?"LANDING AVAILABLE":"ORBITAL INSPECTION";
+            targetLabel.color=!near?new Color(.82f,.9f,.96f):!slowEnough?new Color(1f,.72f,.25f):new Color(.3f,.95f,1f);
+            targetLabel.text=$"DESTINATION  {targetIndex+1:0} / {DestinationCount}  /  {targetName}\n{visibleDistance:0} m to surface   {access}\n{action}";
+            feedback.text=pilot.AtBoundary?"EDGE OF TEST SECTOR — turn back toward the destinations":Time.unscaledTime<messageUntil?message:near&&!slowEnough?"Arrival corridor reached — hold SPACE until speed is 5 m/s or lower.":near?"Arrival conditions stable. Press F to continue.":"W thrust   A / D turn   Up / Down pitch   Shift boost";
         }
         private void LateUpdate()
         {
@@ -140,9 +149,10 @@ namespace StrategyRPG.Flight
         }
         private void ChooseTarget(int index)
         {
-            targetIndex=index;
-            target=index==0?environment.Gate:index==1?environment.Planet:index==2?environment.Station:environment.Moon;
-            targetName=index==0?"ANCIENT GATE":index==1?"AZURE WORLD":index==2?"RELAY STATION":"PALE MOON";
+            targetIndex=Mathf.Clamp(index,0,DestinationCount-1);
+            target=targetIndex==0?environment.Gate:targetIndex==1?environment.Planet:targetIndex==2?environment.Station:targetIndex==3?environment.Moon:targetIndex==4?environment.EmberReach:environment.VerdantVeil;
+            targetName=targetIndex==0?"ANCIENT GATE":targetIndex==1?"AZURE WORLD":targetIndex==2?"RELAY STATION":targetIndex==3?"PALE MOON":targetIndex==4?"EMBER REACH":"VERDANT VEIL";
+            if(Time.frameCount>1)Notify("Destination selected: "+targetName+".");
         }
         private void Notify(string value){message=value;messageUntil=Time.unscaledTime+6;}
         private void BuildHUD()
@@ -155,7 +165,7 @@ namespace StrategyRPG.Flight
             targetLabel=Label(canvasObject.transform,"Target",new Vector2(.68f,.79f),new Vector2(.98f,.95f),23);
             feedback=Label(canvasObject.transform,"Feedback",new Vector2(.03f,.12f),new Vector2(.97f,.19f),22);
             instructions=Label(canvasObject.transform,"Controls",new Vector2(.03f,.025f),new Vector2(.97f,.12f),19);
-            instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–4 / TAB  Destination    F  Land / Inspect    L  Destination log    R  Reset";
+            instructions.text="W / S  Thrust / reverse    A / D  Turn    ↑ / ↓  Pitch    Q / E  Roll    SHIFT  Boost    SPACE  Brake\nRight mouse  Look around    Wheel  Zoom    1–6 / TAB  Destination    F  Land / Inspect    L  Destination log    R  Reset";
             markerText=Label(canvasObject.transform,"Navigation",new Vector2(.5f,.5f),new Vector2(.5f,.5f),20);
             marker=markerText.rectTransform;marker.sizeDelta=new Vector2(250,60);markerText.alignment=TextAnchor.MiddleCenter;markerText.color=new Color(.3f,.85f,1);
             pauseOverlay=gameObject.AddComponent<PrototypePauseOverlay>();pauseOverlay.Build(canvasObject.transform,string.Empty,false,pilot,follow);
@@ -184,7 +194,7 @@ namespace StrategyRPG.Flight
             destinationLogPanel=new GameObject("Destination Log",typeof(RectTransform),typeof(Image));destinationLogPanel.transform.SetParent(canvas,false);
             var panelRect=destinationLogPanel.GetComponent<RectTransform>();panelRect.anchorMin=new Vector2(.20f,.16f);panelRect.anchorMax=new Vector2(.80f,.84f);panelRect.offsetMin=panelRect.offsetMax=Vector2.zero;
             destinationLogPanel.GetComponent<Image>().color=new Color(.008f,.025f,.045f,.96f);
-            destinationLogText=Label(destinationLogPanel.transform,"Destination Log Text",new Vector2(.07f,.07f),new Vector2(.93f,.93f),24);
+            destinationLogText=Label(destinationLogPanel.transform,"Destination Log Text",new Vector2(.07f,.05f),new Vector2(.93f,.95f),20);
             destinationLogText.alignment=TextAnchor.UpperLeft;
             destinationLogPanel.SetActive(false);
         }
@@ -196,11 +206,14 @@ namespace StrategyRPG.Flight
             Cursor.lockState=CursorLockMode.None;Cursor.visible=true;
             if(!open)return;
             string azureSurvey=PrototypeSessionState.AzureSurveyComplete?"SURVEY COMPLETE":"SURVEY PENDING";
+            string moonSurvey=PrototypeSessionState.PaleMoonSurveyComplete?"SIGNALS TRACED":"SIGNALS UNRESOLVED";
             destinationLogText.text="DESTINATION LOG\n<size=18>Exploration records are saved automatically.</size>\n\n"+
-                DestinationLine(0,"ANCIENT GATE","Dormant transit structure. Jump controls remain offline.")+"\n\n"+
-                DestinationLine(1,"AZURE WORLD","Civilized ocean world  /  "+azureSurvey)+"\n\n"+
-                DestinationLine(2,"RELAY STATION","Remote communications and navigation platform.")+"\n\n"+
-                DestinationLine(3,"PALE MOON","Airless satellite available for surface approach.")+"\n\n"+
+                DestinationLine(0,"ANCIENT GATE","Dormant transit structure. Jump controls remain offline.")+"\n"+
+                DestinationLine(1,"AZURE WORLD","Civilized ocean world  /  "+azureSurvey)+"\n"+
+                DestinationLine(2,"RELAY STATION","Remote communications and navigation platform.")+"\n"+
+                DestinationLine(3,"PALE MOON","Cratered airless satellite  /  "+moonSurvey)+"\n"+
+                DestinationLine(4,"EMBER REACH","Volcanic world. Surface landing clearance is pending.")+"\n"+
+                DestinationLine(5,"VERDANT VEIL","Dense cloud world. Long-range biosignatures detected.")+"\n"+
                 "[ L / ESC ]  Close log";
         }
         private string DestinationLine(int index,string name,string description)

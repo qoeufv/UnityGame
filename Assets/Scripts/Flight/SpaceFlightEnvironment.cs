@@ -14,6 +14,8 @@ namespace StrategyRPG.Flight
         public Transform Moon { get; private set; }
         public Transform Gate { get; private set; }
         public Transform Station { get; private set; }
+        public Transform EmberReach { get; private set; }
+        public Transform VerdantVeil { get; private set; }
 
         private readonly List<Object> ownedAssets = new List<Object>();
         private bool built;
@@ -28,10 +30,16 @@ namespace StrategyRPG.Flight
             Material panels = MakeMaterial("Solar panels", new Color(.055f, .16f, .24f), false, .5f);
             Material cyan = MakeMaterial("Navigation cyan", new Color(.19f, .66f, .73f), true);
             Material gold = MakeMaterial("Dust ring gold", new Color(.37f, .32f, .22f), true);
+            Material ember = MakeMaterial("Ember Reach basalt", new Color(.42f, .12f, .055f), false, .18f);
+            Material verdant = MakeMaterial("Verdant Veil clouds", new Color(.12f, .38f, .25f), false, .32f);
             Planet = Sphere("Pelagic / main planet", new Vector3(80, 15, 150), 45, ocean);
             Moon = Sphere("Aster / moon", new Vector3(-55, 35, 230), 14, moonRock);
             MakeRing(Planet, 57, 65, gold, Quaternion.Euler(22, 0, 12));
             MakeRing(Planet, 67, 69, gold, Quaternion.Euler(22, 0, 12));
+            EmberReach = Sphere("Ember Reach / volcanic planet", new Vector3(185, -28, 275), 24, ember);
+            VerdantVeil = Sphere("Verdant Veil / cloud planet", new Vector3(-165, 42, 330), 32, verdant);
+            MakeRing(VerdantVeil, 40, 43, cyan, Quaternion.Euler(-14, 0, 28));
+            Circle(EmberReach, new Vector3(0, 0, 0), 24.2f, .32f, gold);
             // Fine latitude bands suggest atmosphere and make the sphere's curvature legible.
             Material atmosphere = MakeMaterial("Atmosphere rim detail", new Color(.17f, .46f, .56f), false, .05f);
             for (int i = -2; i <= 2; i++)

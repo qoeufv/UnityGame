@@ -39,17 +39,24 @@ namespace StrategyRPG.Flight
         private const float DockInteractionDistance = 9.0f;
         internal static int ReturnTargetIndex = -1;
         internal static bool ReturningFromSurface;
+        private bool IsPaleMoon => planet != null && planet.displayName.ToLowerInvariant().Contains("moon");
 
         private void Start()
         {
             if (planet == null) planet = Resources.Load<PlanetData>("Planets/AzureWorld");
             BuildSurface();
             var playerObject = new GameObject("Surface Explorer", typeof(CharacterController), typeof(PlanetSurfaceWalker));
-            playerObject.transform.position = new Vector3(0, .72f, -5.0f); player = playerObject.transform;
+            // Begin beyond the ship's return radius so the first interaction prompt
+            // teaches the surface mission instead of immediately offering departure.
+            playerObject.transform.position = IsPaleMoon ? new Vector3(0, 3f, -2f) : new Vector3(0, .72f, -5.0f); player = playerObject.transform;
             viewPivot = new GameObject("First Person View").transform; viewPivot.SetParent(player, false); viewPivot.localPosition = Vector3.up * 1.55f;
             walker = player.GetComponent<PlanetSurfaceWalker>();
             walker.viewPivot = viewPivot;
-            walker.platformHalfExtents = new Vector2(14f, 10.5f);
+            walker.platformHalfExtents = IsPaleMoon ? new Vector2(29f, 23f) : new Vector2(14f, 10.5f);
+            // The island prototype uses a flat-deck safety floor in PlanetSurfaceWalker.
+            // Keep that fallback below the generated lunar mesh so crater floors and
+            // rolling terrain remain walkable instead of snapping the player to 0.65m.
+            walker.platformTop = IsPaleMoon ? -10f : .65f;
             walker.interactionDistance = 8.5f;
             walker.swimmingEnabled = false;
             walker.ResetLook(0f);
@@ -60,7 +67,7 @@ namespace StrategyRPG.Flight
             view.tag = "MainCamera"; view.fieldOfView = normalFieldOfView; view.clearFlags = CameraClearFlags.SolidColor;
             view.backgroundColor = new Color(.05f, .22f, .30f);
             // Keep the ship visible from the landing pad while leaving the player a clear walking start.
-            dockedShip = BuildDockedShip(new Vector3(-3.6f, .78f, -4.0f));
+            dockedShip = BuildDockedShip(IsPaleMoon ? new Vector3(-5f, 1.2f, -11f) : new Vector3(-3.6f, .78f, -4.0f));
             BuildHud();
             RestoreSurveyState();
         }
@@ -88,15 +95,15 @@ namespace StrategyRPG.Flight
             {
                 bool nearShip = IsNearDockedShip();
                 view.fieldOfView = Mathf.Lerp(view.fieldOfView, normalFieldOfView, Time.deltaTime * 5f);
-                view.backgroundColor = new Color(.05f, .22f, .30f);
-                RenderSettings.fogColor = new Color(.04f, .16f, .20f);
-                RenderSettings.fogDensity = .008f;
+                view.backgroundColor = IsPaleMoon ? new Color(.012f, .009f, .018f) : new Color(.05f, .22f, .30f);
+                RenderSettings.fogColor = IsPaleMoon ? new Color(.018f, .014f, .025f) : new Color(.04f, .16f, .20f);
+                RenderSettings.fogDensity = IsPaleMoon ? .012f : .008f;
                 if (hudText != null)
                 {
-                    string state = nearShip ? "DOCKED SHIP  /  F RETURN TO ORBIT" : "ISLAND SURFACE  /  OCEAN OBSERVATION ONLY";
+                    string state = nearShip ? "DOCKED SHIP  /  F RETURN TO ORBIT" : IsPaleMoon ? "LUNAR SURFACE  /  LOW VISIBILITY" : "ISLAND SURFACE  /  OCEAN OBSERVATION ONLY";
                     string prompt = Time.unscaledTime < scanMessageUntil ? scanMessage : nearShip ? "F  Return to near orbit" : GetScanPrompt();
-                    string mission = explorationComplete ? "MISSION COMPLETE  /  Azure World survey uploaded" : "MISSION  /  Scan all four marked structures";
-                    hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Return to orbit\n{state}    Discoveries {scanned.Count}/{scanTargets.Count}\n{mission}\n{prompt}";
+                    string mission = explorationComplete ? $"MISSION COMPLETE  /  {planet.displayName} survey uploaded" : IsPaleMoon ? "MISSION  /  Trace the four surface signals" : "MISSION  /  Scan all four marked structures";
+                    hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Pause\n{state}    Discoveries {scanned.Count}/{scanTargets.Count}\n{mission}\n{prompt}";
                 }
             }
         }
@@ -114,7 +121,8 @@ namespace StrategyRPG.Flight
 
         private void RestoreSurveyState()
         {
-            if (!PrototypeSessionState.AzureSurveyComplete) return;
+            bool savedComplete = IsPaleMoon ? PrototypeSessionState.PaleMoonSurveyComplete : PrototypeSessionState.AzureSurveyComplete;
+            if (!savedComplete) return;
             explorationComplete = true;
             for (int i = 0; i < scanTargets.Count; i++)
             {
@@ -124,7 +132,7 @@ namespace StrategyRPG.Flight
             if (missionCompleteText != null)
             {
                 missionCompleteText.transform.parent.gameObject.SetActive(true);
-                missionCompleteText.text = "SURVEY COMPLETE\nAzure World data uploaded\n\nReturn to the docked ship";
+                missionCompleteText.text = $"SURVEY COMPLETE\n{planet.displayName} data uploaded\n\nReturn to the docked ship";
             }
         }
 
@@ -137,17 +145,19 @@ namespace StrategyRPG.Flight
                 if (!HitsTarget(scanTargets[i])) continue;
                 scanned.Add(i);
                 if (i < scanMarkers.Count && scanMarkers[i] != null) scanMarkers[i].gameObject.SetActive(false);
-                scanMessage = i == 0 ? "Research laboratory scanned: oceanic climate research is active." : i == 1 ? "Residential habitat scanned: 36 crew signatures recorded." : i == 2 ? "Communication tower scanned: an unknown signal is repeating below the sea." : "Landing platform scanned: orbital approach path is clear.";
+                scanMessage = IsPaleMoon
+                    ? i == 0 ? "Survey mast decoded: its last transmission ended seventeen years ago." : i == 1 ? "Crashed probe scanned: navigation memory points beneath the crater field." : i == 2 ? "Seismic anomaly scanned: a repeating pulse is rising from below." : "Landing beacon scanned: the return route is locked."
+                    : i == 0 ? "Research laboratory scanned: oceanic climate research is active." : i == 1 ? "Residential habitat scanned: 36 crew signatures recorded." : i == 2 ? "Communication tower scanned: an unknown signal is repeating below the sea." : "Landing platform scanned: orbital approach path is clear.";
                 if (scanned.Count == scanTargets.Count)
                 {
                     explorationComplete = true;
-                    PrototypeSessionState.MarkAzureSurveyComplete();
-                    PrototypeSessionState.MarkDestinationDiscovered(1);
-                    scanMessage = "Azure World exploration complete: all four structures have been surveyed.";
+                    if (IsPaleMoon) PrototypeSessionState.MarkPaleMoonSurveyComplete(); else PrototypeSessionState.MarkAzureSurveyComplete();
+                    PrototypeSessionState.MarkDestinationDiscovered(IsPaleMoon ? 3 : 1);
+                    scanMessage = $"{planet.displayName} exploration complete: all four signals have been surveyed.";
                     if (missionCompleteText != null)
                     {
                         missionCompleteText.transform.parent.gameObject.SetActive(true);
-                        missionCompleteText.text = "SURVEY COMPLETE\nAzure World data uploaded\n\nReturn to the docked ship";
+                        missionCompleteText.text = $"SURVEY COMPLETE\n{planet.displayName} data uploaded\n\nReturn to the docked ship";
                     }
                 }
                 scanMessageUntil = Time.unscaledTime + 6f;
@@ -175,7 +185,7 @@ namespace StrategyRPG.Flight
 
         private Transform BuildDockedShip(Vector3 position)
         {
-            var root = new GameObject("Player Ship / Docked at Azure World").transform;
+            var root = new GameObject("Player Ship / Docked at " + (planet != null ? planet.displayName : "Planet Surface")).transform;
             root.position = position;
             var hull = Material(new Color(.28f, .38f, .46f));
             var glass = Material(new Color(.03f, .20f, .25f));
@@ -216,6 +226,7 @@ namespace StrategyRPG.Flight
 
         private void BuildSurface()
         {
+            if (IsPaleMoon) { BuildPaleMoonSurface(); return; }
             RenderSettings.ambientLight = Color.Lerp(planet.secondaryColor, Color.white, .16f);
             RenderSettings.fog = true; RenderSettings.fogColor = new Color(.04f, .16f, .20f); RenderSettings.fogDensity = .008f;
             var sun = new GameObject("Ocean World Sun", typeof(Light)); sun.transform.rotation = Quaternion.Euler(42, -28, 0); var light = sun.GetComponent<Light>(); light.type = LightType.Directional; light.intensity = 1.15f; light.color = new Color(.78f, .9f, 1f);
@@ -235,6 +246,85 @@ namespace StrategyRPG.Flight
             BuildShorelineBand();
             BuildScanMarkers();
 
+        }
+
+        private void BuildPaleMoonSurface()
+        {
+            RenderSettings.ambientLight = new Color(.055f, .05f, .07f);
+            RenderSettings.fog = true; RenderSettings.fogColor = new Color(.018f, .014f, .025f); RenderSettings.fogDensity = .012f;
+            var sun = new GameObject("Pale Moon Distant Sun", typeof(Light));
+            sun.transform.rotation = Quaternion.Euler(24, -52, 0);
+            var light = sun.GetComponent<Light>(); light.type = LightType.Directional; light.intensity = 1.35f; light.color = new Color(.66f, .72f, .86f); light.shadows = LightShadows.Soft;
+            BuildMoonTerrain();
+            scanTargets.Add(CreateMoonLandmark("Abandoned Survey Mast", new Vector3(-13f, 1.0f, 5f), PrimitiveType.Cylinder, new Vector3(.7f, 4.5f, .7f), new Color(.24f, .27f, .31f)).transform);
+            scanTargets.Add(CreateMoonLandmark("Crashed Navigation Probe", new Vector3(11f, 1.0f, 3f), PrimitiveType.Capsule, new Vector3(1.3f, 2.7f, 1.3f), new Color(.30f, .22f, .18f), new Vector3(0, 0, 72)).transform);
+            scanTargets.Add(CreateMoonLandmark("Subsurface Signal Anomaly", new Vector3(5f, .9f, 16f), PrimitiveType.Sphere, new Vector3(2.2f, .9f, 2.2f), new Color(.12f, .08f, .16f)).transform);
+            var beacon = CreateMoonLandmark("Emergency Landing Beacon", new Vector3(0f, 1.0f, -12f), PrimitiveType.Cylinder, new Vector3(.5f, 2.4f, .5f), new Color(.25f, .45f, .52f));
+            var beaconLight = beacon.AddComponent<Light>(); beaconLight.type = LightType.Point; beaconLight.range = 12f; beaconLight.intensity = 2.4f; beaconLight.color = new Color(.2f, .75f, 1f);
+            scanTargets.Add(beacon.transform);
+            BuildCraterRim(new Vector3(-11f, .15f, 14f), 5.5f);
+            BuildCraterRim(new Vector3(16f, .15f, -8f), 4f);
+            BuildCraterRim(new Vector3(-20f, .15f, -5f), 3f);
+            BuildScanMarkers();
+        }
+
+        private void BuildMoonTerrain()
+        {
+            const int cells = 32;
+            const float width = 60f, depth = 48f;
+            var vertices = new Vector3[(cells + 1) * (cells + 1)];
+            var triangles = new int[cells * cells * 6];
+            for (int z = 0; z <= cells; z++)
+            for (int x = 0; x <= cells; x++)
+            {
+                float px = (x / (float)cells - .5f) * width;
+                float pz = (z / (float)cells - .5f) * depth + 3f;
+                float height = (Mathf.PerlinNoise(x * .13f, z * .13f) - .5f) * 1.4f;
+                height -= CraterDepth(px, pz, -11f, 14f, 5.5f, 1.2f);
+                height -= CraterDepth(px, pz, 16f, -8f, 4f, .9f);
+                vertices[z * (cells + 1) + x] = new Vector3(px, height, pz);
+            }
+            int t = 0;
+            for (int z = 0; z < cells; z++)
+            for (int x = 0; x < cells; x++)
+            {
+                int a = z * (cells + 1) + x, b = a + 1, c = a + cells + 1, d = c + 1;
+                triangles[t++] = a; triangles[t++] = c; triangles[t++] = b;
+                triangles[t++] = b; triangles[t++] = c; triangles[t++] = d;
+            }
+            var mesh = new Mesh { name = "Pale Moon Crater Terrain", vertices = vertices, triangles = triangles };
+            mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            var terrain = new GameObject("Pale Moon / Crater Field");
+            terrain.AddComponent<MeshFilter>().sharedMesh = mesh;
+            terrain.AddComponent<MeshRenderer>().sharedMaterial = Material(new Color(.16f, .145f, .14f));
+            terrain.AddComponent<MeshCollider>().sharedMesh = mesh;
+        }
+
+        private static float CraterDepth(float x, float z, float cx, float cz, float radius, float depth)
+        {
+            float normalized = Vector2.Distance(new Vector2(x, z), new Vector2(cx, cz)) / radius;
+            return normalized < 1f ? (1f - normalized * normalized) * depth : 0f;
+        }
+
+        private GameObject CreateMoonLandmark(string label, Vector3 position, PrimitiveType type, Vector3 scale, Color color, Vector3 rotation = default)
+        {
+            var item = GameObject.CreatePrimitive(type); item.name = label; item.transform.position = position; item.transform.localScale = scale; item.transform.rotation = Quaternion.Euler(rotation);
+            item.GetComponent<Renderer>().sharedMaterial = Material(color);
+            return item;
+        }
+
+        private void BuildCraterRim(Vector3 center, float radius)
+        {
+            var rock = Material(new Color(.21f, .19f, .18f));
+            for (int i = 0; i < 14; i++)
+            {
+                float angle = i * Mathf.PI * 2f / 14f;
+                var piece = GameObject.CreatePrimitive(PrimitiveType.Sphere); piece.name = "Crater Rim Rock";
+                piece.transform.position = center + new Vector3(Mathf.Cos(angle) * radius, .15f, Mathf.Sin(angle) * radius);
+                piece.transform.localScale = new Vector3(1.4f, .35f, .8f);
+                piece.GetComponent<Renderer>().sharedMaterial = rock;
+                var collider = piece.GetComponent<Collider>(); if (collider != null) SafeDestroy(collider);
+            }
         }
 
         private static void SafeDestroy(Object obj)
@@ -344,7 +434,10 @@ namespace StrategyRPG.Flight
                 var target = scanTargets[i];
                 var marker = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 marker.name = "Scan Marker / " + target.name;
-                marker.transform.position = target.position + Vector3.up * (i == 2 ? 11.8f : 3.0f);
+                // Azure's third target is a tall communications tower. Pale Moon's
+                // third target is a low anomaly, so it needs the standard marker lift.
+                float markerHeight = !IsPaleMoon && i == 2 ? 11.8f : 3.0f;
+                marker.transform.position = target.position + Vector3.up * markerHeight;
                 marker.transform.localScale = new Vector3(.16f, .05f, .16f);
                 var col = marker.GetComponent<Collider>(); if (col != null) SafeDestroy(col);
                 var renderer = marker.GetComponent<Renderer>(); renderer.sharedMaterial = Material(markerMaterial);
@@ -481,10 +574,13 @@ namespace StrategyRPG.Flight
             var canvas = new GameObject("Surface HUD", typeof(Canvas), typeof(CanvasScaler));
             canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvas.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1600, 900);
-            var textObject = new GameObject("Planet Info", typeof(RectTransform), typeof(UnityEngine.UI.Text)); textObject.transform.SetParent(canvas.transform, false);
-            var rect = textObject.GetComponent<RectTransform>(); rect.anchorMin = new Vector2(.04f, .74f); rect.anchorMax = new Vector2(.96f, .97f); rect.offsetMin = rect.offsetMax = Vector2.zero;
+            var infoPanel = new GameObject("Planet Info Panel", typeof(RectTransform), typeof(Image)); infoPanel.transform.SetParent(canvas.transform, false);
+            var panelRect = infoPanel.GetComponent<RectTransform>(); panelRect.anchorMin = new Vector2(.025f, .72f); panelRect.anchorMax = new Vector2(.72f, .975f); panelRect.offsetMin = panelRect.offsetMax = Vector2.zero;
+            infoPanel.GetComponent<Image>().color = new Color(.01f, .025f, .04f, .78f);
+            var textObject = new GameObject("Planet Info", typeof(RectTransform), typeof(UnityEngine.UI.Text)); textObject.transform.SetParent(infoPanel.transform, false);
+            var rect = textObject.GetComponent<RectTransform>(); rect.anchorMin = new Vector2(.025f,.06f); rect.anchorMax = new Vector2(.975f,.94f); rect.offsetMin = rect.offsetMax = Vector2.zero;
             hudText = textObject.GetComponent<UnityEngine.UI.Text>(); hudText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); hudText.fontSize = 22; hudText.color = Color.white;
-            hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Pause\nISLAND SURFACE / OCEAN OBSERVATION ONLY";
+            hudText.text = $"{planet.displayName.ToUpperInvariant()}  /  {planet.environment}\n{planet.description}\nWASD  Walk    Mouse  Look around    SPACE  Jump    F  Scan / Return    ESC  Pause";
 
             var completionPanel = new GameObject("Mission Complete Panel", typeof(RectTransform), typeof(Image));
             completionPanel.transform.SetParent(canvas.transform, false);
