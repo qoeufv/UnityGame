@@ -15,9 +15,11 @@ public static class FleetTacticsValidation
         Attacks();
         RandomAttacks();
         Repairs();
+        StateCopiesAndActions();
+        MctsPlanner();
         Outcomes();
         FullEncounter();
-        Debug.Log("FLEET_TACTICS_RULES_PASSED: movement, phases, sight, accuracy, dodge, critical hits, repair, outcomes and full encounter.");
+        Debug.Log("FLEET_TACTICS_RULES_PASSED: movement, phases, sight, stochastic attacks, repair, cloned transitions, MCTS, outcomes and full encounter.");
     }
 
     private static void Check(bool condition, string message)
@@ -135,6 +137,44 @@ public static class FleetTacticsValidation
         enemy.hp = 10;
         s.EndPhase();
         Check(!s.Repair(enemy), "enemy may not consume player repair station");
+
+        enemy.hp = 10;
+        Check(s.FieldRepair(enemy) && enemy.hp == 22 && enemy.ap == 1 && enemy.fieldRepairs == 0,
+            "enemy field repair restores 12 hull and consumes AP and its charge");
+        Check(!s.FieldRepair(enemy), "field repair charge may only be used once");
+    }
+
+    private static void StateCopiesAndActions()
+    {
+        var original = new FleetBattleState(99);
+        original.EndPhase();
+        var copy = original.Clone(17);
+        Check(copy != original && copy.Units.Count == original.Units.Count &&
+            copy.Units.Zip(original.Units, (a, b) => a != b && a.name == b.name && a.hp == b.hp && a.cell == b.cell).All(value => value),
+            "AI clone must deep-copy units and preserve their values");
+        var legal = FleetBattleTransition.LegalActions(copy);
+        Check(legal.Count > 1 && legal.Any(action => action.type == FleetActionType.Move) &&
+            legal.Last().type == FleetActionType.EndPhase, "enemy action generation must include bounded moves and phase end");
+        var move = legal.First(action => action.type == FleetActionType.Move);
+        Vector2Int before = original.Units[move.actor].cell;
+        Check(FleetBattleTransition.Apply(copy, move) && copy.Units[move.actor].cell == move.cell &&
+            original.Units[move.actor].cell == before, "applying a cloned transition must not mutate the live state");
+    }
+
+    private static void MctsPlanner()
+    {
+        var state = new FleetBattleState(123);
+        state.EndPhase();
+        var first = new FleetMctsPlanner(state, true, 777);
+        var second = new FleetMctsPlanner(state, true, 777);
+        first.RunIterations(8); second.RunIterations(8);
+        FleetBattleAction a = first.BestAction(), b = second.BestAction();
+        var legal = FleetBattleTransition.LegalActions(state);
+        Check(legal.Contains(a) && a.Equals(b), "same state, seed and simulation count must produce the same legal MCTS action");
+        var simulation = state.Clone(91);
+        Check(FleetBattleTransition.Apply(simulation, a), "MCTS-selected action must execute on an equivalent state");
+        Check(state.Units.Select(unit => unit.hp).SequenceEqual(new FleetBattleState(123).Units.Select(unit => unit.hp)),
+            "MCTS search must not mutate the live battle state");
     }
 
     private static void RandomAttacks()

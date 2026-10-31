@@ -13,12 +13,16 @@ namespace StrategyRPG.Tactics
     public class FleetBattlePrototype : MonoBehaviour
     {
         public Material materialTemplate;
+        [Header("Enemy AI")]
+        public bool useStochasticMcts = true;
+        [Range(.25f, 3f)] public float enemyTurnThinkingSeconds = 1.5f;
         public FleetBattleState State { get; private set; }
         private FleetUnit selected;
         private Camera view;
         private bool busy;
         private bool started, integrated, bossEncounter, resultReturned;
         private int[] initialHull;
+        private int enemyTurnSequence;
         private System.Action<bool, int[]> encounterFinished;
 
         /// <summary>Configure before Start. Hull order matches the three allied units in FleetBattleState.</summary>
@@ -195,24 +199,68 @@ namespace StrategyRPG.Tactics
         private IEnumerator EnemyTurn()
         {
             Refresh();
-            foreach(var unit in State.Units.Where(u=>u.enemy && u.Alive).ToArray())
+            if (!useStochasticMcts)
             {
-                while(State.CanAct(unit))
+                foreach(var unit in State.Units.Where(u=>u.enemy && u.Alive).ToArray())
                 {
-                    var target=State.Units.Where(u=>State.CanAttack(unit,u)).OrderBy(u=>u.hp).FirstOrDefault();
-                    if(target!=null) yield return Fire(unit,target);
-                    else
+                    while(State.CanAct(unit))
                     {
-                        var cell=State.Approach(unit); if(!cell.HasValue) break;
-                        yield return Move(unit,cell.Value);
+                        var target=State.Units.Where(u=>State.CanAttack(unit,u)).OrderBy(u=>u.hp).FirstOrDefault();
+                        if(target!=null) yield return Fire(unit,target);
+                        else
+                        {
+                            var cell=State.Approach(unit); if(!cell.HasValue) break;
+                            yield return Move(unit,cell.Value);
+                        }
+                        yield return new WaitForSeconds(.25f);
                     }
-                    yield return new WaitForSeconds(.25f);
+                    if(State.Finished) break;
                 }
-                if(State.Finished) break;
+            }
+            else
+            {
+                float turnDeadline = Time.realtimeSinceStartup + enemyTurnThinkingSeconds;
+                int actions = 0;
+                while (!State.Finished && State.Phase == FleetPhase.Enemy && State.Units.Any(State.CanAct))
+                {
+                    var planner = new FleetMctsPlanner(State, true, 440 + State.Round * 101 + enemyTurnSequence++);
+                    float actionDeadline = Mathf.Min(turnDeadline, Time.realtimeSinceStartup + .28f);
+                    do
+                    {
+                        planner.RunIterations(1);
+                        yield return null;
+                    }
+                    while ((Time.realtimeSinceStartup < actionDeadline || planner.Simulations < 8) && planner.Simulations < 128);
+
+                    FleetBattleAction action = planner.BestAction();
+                    if (action.type == FleetActionType.EndPhase) break;
+                    if (action.actor < 0 || action.actor >= State.Units.Count) break;
+                    FleetUnit actor = State.Units[action.actor];
+                    Say($"MCTS considered {planner.Simulations} simulations. {actor.name}: {action.type}.");
+                    Refresh();
+                    yield return new WaitForSeconds(.12f);
+                    if (action.type == FleetActionType.Attack && action.target >= 0 && action.target < State.Units.Count)
+                        yield return Fire(actor, State.Units[action.target]);
+                    else if (action.type == FleetActionType.Move)
+                        yield return Move(actor, action.cell);
+                    else if (action.type == FleetActionType.FieldRepair)
+                        yield return FieldRepair(actor);
+                    else break;
+                    actions++;
+                    if (actions >= 12) break;
+                }
             }
             if(!State.Finished) { State.EndPhase(); Say("Your fleet is ready. Each surviving ship has 2 AP."); }
             if(selected==null || !selected.Alive) selected=State.Units.FirstOrDefault(u=>!u.enemy && u.Alive);
             Refresh();
+        }
+        private IEnumerator FieldRepair(FleetUnit unit)
+        {
+            if (!State.FieldRepair(unit)) yield break;
+            busy = true; Refresh();
+            yield return new WaitForSeconds(.3f);
+            Say(unit.name + " restored 12 hull with its field repair charge.");
+            busy = false; Refresh();
         }
         private void Refresh()
         {
@@ -229,10 +277,10 @@ namespace StrategyRPG.Tactics
             }
             foreach(var unit in State.Units)
             { ships[unit].gameObject.SetActive(unit.Alive); labels[unit].text=$"{unit.name}\n{unit.hp}/{unit.maxHP}  |  {unit.ap} AP"; }
-            details.text=selected==null?"No ship selected":$"{selected.name.ToUpper()}\n\nHULL  {selected.hp} / {selected.maxHP}\nACTION POINTS  {selected.ap} / 2\n\nMOVE  {selected.move} hexes\nRANGE  {selected.range} hexes\nDAMAGE  {selected.attack}\nHIT  {selected.accuracy*100f:0}%\nCRIT  {selected.critRate*100f:0}%  /  {selected.criticalMultiplier:0.0}x\n\nMove / fire: 1 AP each\nA miss is shown as DODGED.\nAsteroids block movement\nand line of fire.\n\nRepair relay: +20 hull\nOnce per encounter, 1 AP.\nStand on or next to relay.";
+            details.text=selected==null?"No ship selected":$"{selected.name.ToUpper()}\n\nHULL  {selected.hp} / {selected.maxHP}\nACTION POINTS  {selected.ap} / 2\n\nMOVE  {selected.move} hexes\nRANGE  {selected.range} hexes\nDAMAGE  {selected.attack}\nHIT  {selected.accuracy*100f:0}%\nCRIT  {selected.critRate*100f:0}%  /  {selected.criticalMultiplier:0.0}x\n\nMove / fire: 1 AP each\nA miss is shown as DODGED.\nAsteroids block movement\nand line of fire.\n\nRepair relay: +20 hull\nField repair: +12 hull\n{selected.fieldRepairs} field charge left.";
             endTurn.interactable=!busy && State.Phase==FleetPhase.Player;
-            repair.interactable=!busy && State.CanRepair(selected);
-            repair.GetComponentInChildren<Text>().text=State.RepairUsed?"RELAY USED":"REPAIR +20";
+            repair.interactable=!busy && (State.CanRepair(selected) || State.CanFieldRepair(selected));
+            repair.GetComponentInChildren<Text>().text=State.CanRepair(selected)?"RELAY +20":selected!=null && selected.fieldRepairs>0?"FIELD REPAIR +12":"REPAIR USED";
             restart.interactable = !busy && !resultReturned && (integrated ? State.Finished : State.Phase != FleetPhase.Enemy);
             restart.GetComponentInChildren<Text>().text = integrated ? "RETURN TO ROUTE" : "RESTART";
             if (State.Finished)
@@ -263,9 +311,15 @@ namespace StrategyRPG.Tactics
             title=Text("Heading",new Vector2(.025f,.90f),new Vector2(.97f,.98f),30);
             details=Text("Ship details",new Vector2(.80f,.28f),new Vector2(.99f,.87f),21);
             log=Text("Action log",new Vector2(.025f,.03f),new Vector2(.72f,.09f),23);
-            var help=Text("Help",new Vector2(.025f,.84f),new Vector2(.77f,.9f),20); help.text="SELECT SHIP  >  MOVE OR FIRE  >  END TURN     |     CYAN: ALLIES    CORAL: HOSTILES";
+            var help=Text("Help",new Vector2(.025f,.84f),new Vector2(.77f,.9f),20); help.text="SELECT SHIP  >  MOVE OR FIRE  >  END TURN     |     HOSTILE AI: STOCHASTIC MCTS";
             endTurn=Button("END TURN",new Vector2(.80f,.14f),new Vector2(.98f,.21f),EndTurn);
-            repair=Button("REPAIR +20",new Vector2(.80f,.23f),new Vector2(.98f,.30f),()=>{ if(!busy && State.Repair(selected)) { Say("Repair relay consumed. +20 hull."); Refresh(); } });
+            repair=Button("REPAIR +20",new Vector2(.80f,.23f),new Vector2(.98f,.30f),()=>
+            {
+                if (busy) return;
+                if (State.Repair(selected)) Say("Repair relay consumed. +20 hull.");
+                else if (State.FieldRepair(selected)) Say(selected.name + " used its field repair charge. +12 hull.");
+                Refresh();
+            });
             restart=Button("RESTART",new Vector2(.80f,.045f),new Vector2(.98f,.11f),ReturnOrRestart);
         }
         private Text Text(string name,Vector2 min,Vector2 max,int size)

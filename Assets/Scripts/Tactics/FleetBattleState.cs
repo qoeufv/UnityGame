@@ -27,6 +27,7 @@ namespace StrategyRPG.Tactics
         [Range(0f, 1f)] public float accuracy = .85f;
         [Range(0f, 1f)] public float critRate = .10f;
         public float criticalMultiplier = 1.5f;
+        public int fieldRepairs = 1;
         public bool Alive => hp > 0;
         public FleetUnit(string name, bool enemy, Vector2Int cell, int hp, int attack, int range, int move)
         { this.name = name; this.enemy = enemy; this.cell = cell; this.hp = maxHP = hp; this.attack = attack; this.range = range; this.move = move; }
@@ -47,6 +48,8 @@ namespace StrategyRPG.Tactics
         public FleetAttackResult LastAttackResult { get; private set; }
         private uint randomState;
 
+        private FleetBattleState(bool empty) { }
+
         public FleetBattleState(int randomSeed = 440)
         {
             randomState = randomSeed == 0 ? 1u : unchecked((uint)randomSeed);
@@ -57,6 +60,43 @@ namespace StrategyRPG.Tactics
             Units.Add(new FleetUnit("Raider II", true, new Vector2Int(6,3), 38, 12, 2, 2));
             Units.Add(new FleetUnit("Sentinel", true, new Vector2Int(7,4), 50, 14, 3, 2));
             foreach (var cell in new[] { new Vector2Int(3,1), new Vector2Int(4,3), new Vector2Int(2,4), new Vector2Int(5,0) }) Obstacles.Add(cell);
+        }
+
+        /// <summary>Deep copy used by AI simulations. Scene objects are never referenced.</summary>
+        public FleetBattleState Clone(int simulationSalt = 0)
+        {
+            var copy = new FleetBattleState(true)
+            {
+                RepairUsed = RepairUsed,
+                Phase = Phase,
+                Round = Round,
+                LastAttackResult = LastAttackResult,
+                randomState = MixRandom(randomState, simulationSalt)
+            };
+            foreach (var cell in Obstacles) copy.Obstacles.Add(cell);
+            foreach (var unit in Units)
+            {
+                copy.Units.Add(new FleetUnit(unit.name, unit.enemy, unit.cell, unit.maxHP, unit.attack, unit.range, unit.move)
+                {
+                    hp = unit.hp,
+                    ap = unit.ap,
+                    accuracy = unit.accuracy,
+                    critRate = unit.critRate,
+                    criticalMultiplier = unit.criticalMultiplier,
+                    fieldRepairs = unit.fieldRepairs
+                });
+            }
+            return copy;
+        }
+
+        private static uint MixRandom(uint state, int salt)
+        {
+            if (salt == 0) return state;
+            uint mixed = state ^ unchecked((uint)salt * 0x9E3779B9u);
+            mixed ^= mixed >> 16; mixed *= 0x7FEB352Du;
+            mixed ^= mixed >> 15; mixed *= 0x846CA68Bu;
+            mixed ^= mixed >> 16;
+            return mixed == 0 ? 1u : mixed;
         }
         public static int Distance(Vector2Int a, Vector2Int b)
         { Vector2Int d = a - b; return (Math.Abs(d.x) + Math.Abs(d.y) + Math.Abs(d.x + d.y)) / 2; }
@@ -90,6 +130,28 @@ namespace StrategyRPG.Tactics
         {
             if (!CanAct(u)) return false;
             var path = Path(u, cell); return path != null && path.Count > 1 && path.Count - 1 <= u.move;
+        }
+        /// <summary>All legal destinations and path distances from one bounded flood fill.</summary>
+        public Dictionary<Vector2Int, int> ReachableCells(FleetUnit unit)
+        {
+            var distances = new Dictionary<Vector2Int, int>();
+            if (!CanAct(unit)) return distances;
+            var occupied = new HashSet<Vector2Int>(Units.Where(other => other.Alive && other != unit).Select(other => other.cell));
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(unit.cell); distances[unit.cell] = 0;
+            while (queue.Count > 0)
+            {
+                Vector2Int cell = queue.Dequeue(); int distance = distances[cell];
+                if (distance >= unit.move) continue;
+                foreach (var direction in Directions)
+                {
+                    Vector2Int next = cell + direction;
+                    if (!Inside(next) || Obstacles.Contains(next) || occupied.Contains(next) || distances.ContainsKey(next)) continue;
+                    distances[next] = distance + 1; queue.Enqueue(next);
+                }
+            }
+            distances.Remove(unit.cell);
+            return distances;
         }
         public bool Move(FleetUnit u, Vector2Int cell)
         { if (!CanMove(u, cell)) return false; u.cell = cell; u.ap--; return true; }
@@ -144,6 +206,12 @@ namespace StrategyRPG.Tactics
         public bool CanRepair(FleetUnit u) => CanAct(u) && !u.enemy && !RepairUsed && u.hp < u.maxHP && Distance(u.cell, RepairCell) <= 1;
         public bool Repair(FleetUnit u)
         { if (!CanRepair(u)) return false; u.ap--; u.hp = Math.Min(u.maxHP, u.hp + 20); RepairUsed = true; return true; }
+        public bool CanFieldRepair(FleetUnit u) => CanAct(u) && u.fieldRepairs > 0 && u.hp < u.maxHP;
+        public bool FieldRepair(FleetUnit u)
+        {
+            if (!CanFieldRepair(u)) return false;
+            u.ap--; u.fieldRepairs--; u.hp = Math.Min(u.maxHP, u.hp + 12); return true;
+        }
         public void EndPhase()
         {
             if (Finished) return;

@@ -6,6 +6,9 @@ All notable player-facing changes are recorded here. The project follows semanti
 
 ### Added
 
+- A stochastic Monte Carlo Tree Search enemy for the fleet tactics prototype, with cloned battle-state simulation, bounded rollouts and UCT action selection.
+- Sequential enemy control across multiple ships, including movement, attacks, field repairs and end-turn decisions within a real-time thinking budget.
+- Validation for cloned transitions, legal AI actions, deterministic seeded searches and protection of the live battle state during simulations.
 - Shared pause overlay for the flight and planet-surface scenes.
 - Persistent play-session discovery and Azure World survey completion state.
 - A dedicated mission-complete panel that directs the player back to the docked ship.
@@ -28,6 +31,7 @@ All notable player-facing changes are recorded here. The project follows semanti
 
 ### Changed
 
+- Fleet tactics now exposes field repair as a once-per-ship action and reports the MCTS simulation count in the battle HUD.
 - The standalone build now starts in `SpaceFlightPrototype`; inactive HexMap work is excluded from builds.
 - Product metadata now identifies the application as Game Frontier `0.1.0` with bundle ID `com.gamefrontier.prototype`.
 - Completed scan markers disappear and remain completed when Azure World is revisited, including after restarting the application.
